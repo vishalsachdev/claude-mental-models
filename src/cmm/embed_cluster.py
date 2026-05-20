@@ -34,7 +34,10 @@ def build(changelog: Path = Path("data/processed/changelog.parquet"),
     model = SentenceTransformer(EMBED_MODEL)
     vectors = model.encode(df["text"].to_list(), show_progress_bar=True)
 
-    labels = hdbscan.HDBSCAN(min_cluster_size=5).fit_predict(vectors)
+    # HDBSCAN clusters poorly in 384-d; cluster a UMAP-reduced space instead.
+    reduced = umap.UMAP(n_components=5, random_state=42).fit_transform(vectors)
+    labels = hdbscan.HDBSCAN(min_cluster_size=20, min_samples=5).fit_predict(reduced)
+    # Separate 2-d projection for plotting in the notebook.
     coords = umap.UMAP(n_components=2, random_state=42).fit_transform(vectors)
 
     out_df = df.with_columns(
