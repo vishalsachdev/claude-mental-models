@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+data/raw/*
+data/cache/*
+!data/raw/.gitkeep
+!data/cache/.gitkeep
+.marimo.toml
