@@ -67,3 +67,52 @@ def clone_or_update_repo(dest: Path) -> Path:
     else:
         subprocess.run(["git", "clone", "--depth", "1000", REPO_URL, str(dest)], check=True)
     return dest
+
+
+def version_dates(repo: Path) -> dict[str, str]:
+    """Map version -> ISO date of the commit that first added its heading.
+
+    Walks `git log` of CHANGELOG.md oldest-first; the first commit whose diff
+    adds `## <version>` dates that version.
+    """
+    repo = Path(repo)
+    log = subprocess.run(
+        ["git", "-C", str(repo), "log", "--reverse", "--date=short",
+         "--format=%H%x09%ad", "--", "CHANGELOG.md"],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip().splitlines()
+    dates: dict[str, str] = {}
+    for line in log:
+        commit, date = line.split("\t")
+        diff = subprocess.run(
+            ["git", "-C", str(repo), "show", commit, "--", "CHANGELOG.md"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        for added in re.findall(r"^\+##\s+v?(\d+\.\d+\.\d+\S*)\s*$", diff, re.M):
+            dates.setdefault(added, date)
+    return dates
+
+
+def collect(repo_dir: Path = Path("data/raw/claude-code"),
+            out: Path = Path("data/processed/changelog.parquet")) -> Path:
+    """End-to-end: clone repo, parse, date, write Parquet."""
+    import polars as pl
+
+    repo = clone_or_update_repo(repo_dir)
+    entries = parse_changelog((repo / "CHANGELOG.md").read_text())
+    dates = version_dates(repo)
+    undated = sorted({e["version"] for e in entries} - set(dates))
+    if undated:
+        print(f"WARNING: {len(undated)} versions have no git date: {undated}")
+    for e in entries:
+        e["date"] = dates.get(e["version"])
+    df = pl.DataFrame(entries)
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df.write_parquet(out)
+    print(f"Wrote {len(df)} changelog entries to {out}")
+    return out
+
+
+if __name__ == "__main__":
+    collect()
