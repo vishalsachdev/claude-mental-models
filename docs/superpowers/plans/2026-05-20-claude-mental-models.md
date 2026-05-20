@@ -429,7 +429,7 @@ Run:
 ```bash
 uv run python -c "import httpx; open('data/fixtures/news_index.html','w').write(httpx.get('https://www.anthropic.com/news', follow_redirects=True, timeout=30).text)"
 ```
-Then open `data/fixtures/news_index.html` and identify the repeating element that wraps each post link (the anchor `href` pattern, e.g. `/news/<slug>`). Record the CSS/regex selector you will use in Step 3.
+Then open `data/fixtures/news_index.html` and identify the repeating element that wraps each post link (the anchor `href` pattern, e.g. `/news/<slug>`). Record the CSS/regex selector you will use in Step 3. Also note whether the index **paginates** (a `?page=` query param, numbered page links, or infinite scroll) — record the scheme so `crawl_index` in Step 6 uses the right page-URL template.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -462,6 +462,7 @@ Adjust the `href` regex in `extract_post_links` to match the pattern observed in
 """Crawl Anthropic news/engineering posts (broad collection)."""
 import json
 import re
+import time
 from pathlib import Path
 
 import httpx
@@ -470,6 +471,7 @@ INDEX_URLS = [
     "https://www.anthropic.com/news",
     "https://www.anthropic.com/engineering",
 ]
+WINDOW_START = "2025-02-01"  # Claude Code launch month; lower bound for posts
 # Matches post links like /news/<slug>, /engineering/<slug>, /research/<slug>.
 HREF_RE = re.compile(r'href="(/(?:news|engineering|research)/[a-z0-9][a-z0-9-]+)"')
 
@@ -482,8 +484,22 @@ def extract_post_links(html: str, base: str) -> list[str]:
     return list(seen)
 
 
-def fetch(url: str, client: httpx.Client) -> str:
-    return client.get(url, follow_redirects=True, timeout=30).text
+def fetch(url: str, client: httpx.Client, retries: int = 3) -> str:
+    """GET a URL, retrying with exponential backoff.
+
+    Raises RuntimeError after `retries` failures — fail loudly, never return
+    a partial/empty body silently.
+    """
+    last: Exception | None = None
+    for attempt in range(retries):
+        try:
+            resp = client.get(url, follow_redirects=True, timeout=30)
+            resp.raise_for_status()
+            return resp.text
+        except httpx.HTTPError as exc:
+            last = exc
+            time.sleep(2 ** attempt)
+    raise RuntimeError(f"Failed to fetch {url} after {retries} attempts: {last}")
 ```
 
 - [ ] **Step 5: Run test to verify it passes**
@@ -496,6 +512,26 @@ Expected: PASS
 Append to `src/cmm/collect_blogs.py`:
 ```python
 from cmm.cache import cached_call
+
+
+def crawl_index(index: str, client: httpx.Client, max_pages: int = 25) -> list[str]:
+    """Collect post links from an index and all its paginated pages.
+
+    Tries `<index>?page=N` for N=1.. until a page yields no new links. If
+    Step 1's fixture showed a different pagination scheme, change the
+    `page_url` template here to match it.
+    """
+    links: dict[str, None] = {}
+    for page in range(1, max_pages + 1):
+        page_url = index if page == 1 else f"{index}?page={page}"
+        html = cached_call(f"index::{page_url}", lambda u=page_url: fetch(u, client))
+        new = [u for u in extract_post_links(html, "https://www.anthropic.com")
+               if u not in links]
+        if not new:
+            break
+        for u in new:
+            links[u] = None
+    return list(links)
 
 
 def extract_post(html: str) -> dict:
@@ -516,13 +552,16 @@ def extract_post(html: str) -> dict:
 
 
 def collect(out: Path = Path("data/raw/blogs.json")) -> Path:
-    """Crawl index pages, fetch each post (cached), write raw JSON."""
+    """Crawl paginated index pages, fetch each post, filter to the window.
+
+    Posts dated before WINDOW_START are dropped. Posts with no parseable date
+    are surfaced as a warning and KEPT (per spec: flag, never silently drop).
+    """
     posts: list[dict] = []
     with httpx.Client() as client:
         links: list[str] = []
         for index in INDEX_URLS:
-            html = cached_call(f"index::{index}", lambda i=index: fetch(i, client))
-            links += extract_post_links(html, base="https://www.anthropic.com")
+            links += crawl_index(index, client)
         links = list(dict.fromkeys(links))
         print(f"Found {len(links)} post links")
         for url in links:
@@ -530,10 +569,17 @@ def collect(out: Path = Path("data/raw/blogs.json")) -> Path:
             post = extract_post(html)
             post["url"] = url
             posts.append(post)
+
+    missing = [p["url"] for p in posts if not p["date"]]
+    if missing:
+        print(f"WARNING: {len(missing)} posts have no parsed date (kept): {missing}")
+    kept = [p for p in posts if p["date"] is None or p["date"] >= WINDOW_START]
+    print(f"Kept {len(kept)}/{len(posts)} posts in window (>= {WINDOW_START})")
+
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(posts, indent=2))
-    print(f"Wrote {len(posts)} posts to {out}")
+    out.write_text(json.dumps(kept, indent=2))
+    print(f"Wrote {len(kept)} posts to {out}")
     return out
 
 
@@ -766,6 +812,7 @@ def build(changelog: Path = Path("data/processed/changelog.parquet"),
         pl.col("text"),
         pl.lit("changelog").alias("source"),
         pl.col("date"),
+        pl.col("version"),
     )
     bl = (pl.read_parquet(blogs).filter(pl.col("cc_relevant"))
           .select(
@@ -773,6 +820,7 @@ def build(changelog: Path = Path("data/processed/changelog.parquet"),
               (pl.col("title") + ". " + pl.col("body").str.slice(0, 800)).alias("text"),
               pl.lit("blog").alias("source"),
               pl.col("date"),
+              pl.lit(None, dtype=pl.Utf8).alias("version"),
           ))
     df = pl.concat([cl, bl])
 
@@ -822,7 +870,7 @@ git commit -m "feat: embeddings spine with HDBSCAN clustering and UMAP projectio
 
 ```python
 # src/cmm/thematic_coding.py
-"""LLM thematic coding: open codes -> axial mental-model themes."""
+"""LLM thematic coding: two-pass open coding -> axial mental-model themes."""
 import json
 from pathlib import Path
 
@@ -837,6 +885,15 @@ OPEN_SYSTEM = (
     "they must think differently. Codes are reusable phrases, not summaries."
 )
 
+# Pass 2 deliberately differs in framing so its cache key differs and the two
+# passes are genuinely independent — their agreement is the consistency audit.
+OPEN_SYSTEM_REVIEW = (
+    "You are independently re-coding a Claude Code release item for a "
+    "qualitative study. Ignore any prior coding. Return JSON {\"codes\": [..]} "
+    "with 1-3 short, reusable conceptual codes naming the shift in how a user "
+    "must think to use this feature well."
+)
+
 AXIAL_SYSTEM = (
     "You are doing axial coding. Given a list of open codes from Claude Code's "
     "release history, group them into 6-10 named 'mental models' a user had to "
@@ -845,15 +902,29 @@ AXIAL_SYSTEM = (
 )
 
 
+def _codes_for(text: str, source: str, system: str) -> list[str]:
+    prompt = f"Source: {source}\nItem: {text[:1200]}"
+    return complete_json(prompt, system=system, max_tokens=300)["codes"]
+
+
 def open_code(items: pl.DataFrame) -> pl.DataFrame:
-    """Add a `codes` list column to each entry via LLM open coding."""
-    coded = []
+    """Two independent open-coding passes per item, plus a stability score.
+
+    Columns: entry_id, date, codes (union of both passes), codes_a, codes_b,
+    stability (Jaccard overlap of the two passes — the audit signal).
+    """
+    rows = []
     for row in items.iter_rows(named=True):
-        prompt = f"Source: {row['source']}\nItem: {row['text'][:1200]}"
-        result = complete_json(prompt, system=OPEN_SYSTEM, max_tokens=300)
-        coded.append({"entry_id": row["entry_id"], "date": row["date"],
-                      "codes": result["codes"]})
-    return pl.DataFrame(coded)
+        a = _codes_for(row["text"], row["source"], OPEN_SYSTEM)
+        b = _codes_for(row["text"], row["source"], OPEN_SYSTEM_REVIEW)
+        sa, sb = set(a), set(b)
+        jaccard = len(sa & sb) / len(sa | sb) if (sa | sb) else 1.0
+        rows.append({
+            "entry_id": row["entry_id"], "date": row["date"],
+            "codes": sorted(sa | sb), "codes_a": a, "codes_b": b,
+            "stability": jaccard,
+        })
+    return pl.DataFrame(rows)
 
 
 def axial_code(codes_df: pl.DataFrame) -> pl.DataFrame:
@@ -881,17 +952,51 @@ def axial_code(codes_df: pl.DataFrame) -> pl.DataFrame:
     return pl.DataFrame(themes)
 
 
+def assign_themes(codes_df: pl.DataFrame, themes_df: pl.DataFrame) -> pl.DataFrame:
+    """Add a `themes` column: theme name(s) each entry belongs to.
+
+    An entry belongs to a theme if any of its codes is one of the theme's
+    member_codes. This is the entry<->theme mapping the notebook needs to
+    color clusters and chart theme weight over time.
+    """
+    code_to_theme = {c: t["name"]
+                     for t in themes_df.iter_rows(named=True)
+                     for c in t["member_codes"]}
+    return codes_df.with_columns(
+        pl.col("codes").map_elements(
+            lambda cs: sorted({code_to_theme[c] for c in cs if c in code_to_theme}),
+            return_dtype=pl.List(pl.Utf8),
+        ).alias("themes")
+    )
+
+
 def run(embeddings: Path = Path("data/processed/embeddings.parquet")) -> None:
     items = pl.read_parquet(embeddings).select("entry_id", "text", "source", "date")
     codes_df = open_code(items)
-    codes_df.write_parquet("data/processed/codes.parquet")
-    print(f"Open-coded {codes_df.height} items")
+    print(f"Open-coded {codes_df.height} items "
+          f"(mean pass-agreement {codes_df['stability'].mean():.2f})")
 
     themes_df = axial_code(codes_df)
+    codes_df = assign_themes(codes_df, themes_df)
+    codes_df.write_parquet("data/processed/codes.parquet")
     themes_df.write_parquet("data/processed/themes.parquet")
+
+    # Consistency audit: entries whose two open-coding passes disagreed most.
+    low = codes_df.filter(pl.col("stability") < 0.5)
+    audit = {
+        "mean_stability": codes_df["stability"].mean(),
+        "n_low_stability": low.height,
+        "low_stability_entries": low.select(
+            "entry_id", "codes_a", "codes_b", "stability"
+        ).to_dicts(),
+    }
+    Path("data/processed/coding_audit.json").write_text(json.dumps(audit, indent=2))
+
     print(f"Derived {themes_df.height} mental-model themes:")
     for name in themes_df["name"].to_list():
         print(f"  - {name}")
+    print(f"Audit: {low.height} low-stability entries -> "
+          f"data/processed/coding_audit.json")
 
 
 if __name__ == "__main__":
@@ -901,13 +1006,13 @@ if __name__ == "__main__":
 - [ ] **Step 2: Run it and eyeball output**
 
 Run: `uv run python -m cmm.thematic_coding`
-Expected: prints `Open-coded <N> items` then 6–10 theme names. Read the theme names — they should read like mental models ("context as a managed resource", "delegation to subagents"), not topic labels ("MCP", "bug fixes"). If they read as topics, tighten `AXIAL_SYSTEM` and re-run (cache makes open-coding instant on re-run).
+Expected: prints `Open-coded <N> items (mean pass-agreement 0.x)`, 6–10 theme names, and an audit line. Read the theme names — they should read like mental models ("context as a managed resource", "delegation to subagents"), not topic labels ("MCP", "bug fixes"). If they read as topics, tighten `AXIAL_SYSTEM` and re-run (cache makes open-coding instant on re-run). Spot-check `data/processed/codes.parquet` has a `themes` column with theme names, and that `coding_audit.json` exists with a `mean_stability` value.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cmm/thematic_coding.py data/processed/codes.parquet data/processed/themes.parquet
-git commit -m "feat: LLM thematic coding into named mental-model themes"
+git add src/cmm/thematic_coding.py data/processed/codes.parquet data/processed/themes.parquet data/processed/coding_audit.json
+git commit -m "feat: two-pass thematic coding with consistency audit and entry-theme map"
 ```
 
 ---
@@ -960,14 +1065,24 @@ def retrieve(question: str, k: int = 8) -> pl.DataFrame:
     return _corpus[top.tolist()]
 
 
-def answer(question: str) -> str:
-    """Retrieve context and have Claude answer, grounded with citations."""
+def answer(question: str, themes_path: Path = Path("data/processed/themes.parquet")) -> str:
+    """Retrieve context and have Claude answer, grounded with citations.
+
+    The named mental-model themes (only ~6-10) are always included in full so
+    the model can frame answers against them; retrieved changelog/blog rows
+    carry their version + date for inline citation.
+    """
     hits = retrieve(question)
+    themes = pl.read_parquet(themes_path)
+    theme_block = "\n".join(
+        f"- {t['name']}: {t['description']}" for t in themes.iter_rows(named=True)
+    )
     context = "\n\n".join(
-        f"[{r['source']} | {r['entry_id']} | {r['date']}] {r['text'][:600]}"
+        f"[{r['source']} | version {r['version']} | {r['date']}] {r['text'][:600]}"
         for r in hits.iter_rows(named=True)
     )
-    prompt = f"Context:\n{context}\n\nQuestion: {question}"
+    prompt = (f"Mental-model themes:\n{theme_block}\n\n"
+              f"Retrieved context:\n{context}\n\nQuestion: {question}")
     return complete(prompt, system=RAG_SYSTEM, max_tokens=1500)
 
 
@@ -1061,17 +1176,26 @@ chart_cov = alt.Chart(cov.to_pandas()).mark_area(opacity=0.6).encode(
 mo.ui.altair_chart(chart_cov)
 ```
 
-- [ ] **Step 5: Add Chart 4 — mental-model emergence**
+- [ ] **Step 5: Add Chart 4 — mental-model emergence and weight**
+
+This is the centerpiece: a streamgraph showing when each mental model first
+appears AND how its weight (cumulative coded entries) grows over time. It uses
+the entry↔theme map (`themes` column of `codes.parquet`).
 
 Cell:
 ```python
-emergence = (themes.filter(pl.col("first_seen_date").is_not_null())
-             .select("name", "first_seen_date")
-             .with_columns(pl.col("first_seen_date").str.to_date()))
-chart_emerge = alt.Chart(emergence.to_pandas()).mark_circle(size=200).encode(
-    x="first_seen_date:T",
-    y=alt.Y("name:N", title="mental model", sort="x"),
-).properties(title="When each mental model first emerged", width=700)
+theme_growth = (
+    codes.explode("themes").drop_nulls("themes")
+    .filter(pl.col("date").is_not_null())
+    .with_columns(pl.col("date").str.to_date().dt.truncate("1mo").alias("month"))
+    .group_by("month", "themes").len().sort("month")
+    .with_columns(pl.col("len").cum_sum().over("themes").alias("weight"))
+)
+chart_emerge = alt.Chart(theme_growth.to_pandas()).mark_area().encode(
+    x="month:T",
+    y=alt.Y("weight:Q", stack="center", title="cumulative coded entries"),
+    color=alt.Color("themes:N", title="mental model"),
+).properties(title="Mental-model emergence and growth", width=700)
 mo.ui.altair_chart(chart_emerge)
 ```
 
@@ -1081,11 +1205,18 @@ Cell:
 ```python
 mo.md("## Cluster explorer")
 ```
+The explorer joins the embeddings with the entry↔theme map so you can plot
+`umap_x` vs `umap_y` colored by either `cluster_label` (HDBSCAN) or `themes`
+(LLM) — that side-by-side IS the cross-check the spec asks for.
+
 Cell:
 ```python
-mo.ui.data_explorer(embeddings.select(
-    "entry_id", "source", "date", "text", "cluster_label", "umap_x", "umap_y"
-))
+clusters = (
+    embeddings.join(codes.select("entry_id", "themes"), on="entry_id", how="left")
+    .select("entry_id", "source", "version", "date", "text",
+            "cluster_label", "themes", "umap_x", "umap_y")
+)
+mo.ui.data_explorer(clusters)
 ```
 
 - [ ] **Step 7: Add the theme reference table**
@@ -1144,7 +1275,8 @@ Open the notebook, read the charts, and write `docs/findings.md` with these sect
 - **Churn** — what got deprecated/removed, and what that implies users had to un-learn.
 - **Narration** — whether blog coverage rose or fell as the tool matured.
 - **Mental-model timeline** — the ordered list of emerged mental models with dates.
-- **Where the methods disagree** — cases where HDBSCAN clusters and the LLM axial themes tell different stories.
+- **Coding reliability** — the mean two-pass agreement and the count of low-stability entries from `data/processed/coding_audit.json`; note whether the unstable entries cluster around any one theme.
+- **Where the methods disagree** — cases where HDBSCAN clusters and the LLM axial themes tell different stories (compare `cluster_label` vs `themes` in the cluster explorer).
 
 - [ ] **Step 2: Write `README.md`**
 
