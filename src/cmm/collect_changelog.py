@@ -10,18 +10,18 @@ VERSION_RE = re.compile(r"^##\s+v?(\d+\.\d+\.\d+\S*)\s*$")
 BULLET_RE = re.compile(r"^[-*]\s+(.*\S)\s*$")
 
 _RULES = [
-    ("deprecate", ("deprecat",)),
-    ("remove", ("removed", "remove ", "deleted")),
-    ("add", ("added", "add ", "new ", "introduc")),
-    ("fix", ("fixed", "fix ", "bug")),
+    ("deprecate", r"\bdeprecat\w*"),
+    ("remove", r"\b(remove[sd]?|deleted)\b"),
+    ("add", r"\b(adds?|added|new|introduc\w*)\b"),
+    ("fix", r"\b(fix(es|ed)?|bugs?)\b"),
 ]
 
 
 def classify_change(text: str) -> str:
-    """Map a changelog entry to a change_type via keyword rules."""
+    """Map a changelog entry to a change_type via word-boundary keyword rules."""
     low = text.lower()
-    for label, keywords in _RULES:
-        if any(k in low for k in keywords):
+    for label, pattern in _RULES:
+        if re.search(pattern, low):
             return label
     return "change"
 

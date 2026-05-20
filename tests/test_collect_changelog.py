@@ -1,7 +1,8 @@
+import pytest
 from pathlib import Path
 from cmm.collect_changelog import parse_changelog, classify_change
 
-FIXTURE = Path("data/fixtures/changelog_sample.md")
+FIXTURE = Path(__file__).parent.parent / "data" / "fixtures" / "changelog_sample.md"
 
 
 def test_parse_changelog_extracts_versions_and_entries():
@@ -26,3 +27,13 @@ def test_classify_change_keyword_rules():
     assert classify_change("Removed the old API") == "remove"
     assert classify_change("Changed default model selection") == "change"
     assert classify_change("Improved startup time") == "change"
+
+
+def test_parse_changelog_raises_on_bullet_before_heading():
+    with pytest.raises(ValueError):
+        parse_changelog("- orphan bullet with no heading")
+
+
+def test_parse_changelog_raises_on_no_entries():
+    with pytest.raises(ValueError):
+        parse_changelog("# Changelog\n\nNo bullets here.\n")
