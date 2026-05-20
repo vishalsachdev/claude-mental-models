@@ -920,7 +920,8 @@ def open_code(items: pl.DataFrame) -> pl.DataFrame:
         sa, sb = set(a), set(b)
         jaccard = len(sa & sb) / len(sa | sb) if (sa | sb) else 1.0
         rows.append({
-            "entry_id": row["entry_id"], "date": row["date"],
+            "entry_id": row["entry_id"], "source": row["source"],
+            "date": row["date"],
             "codes": sorted(sa | sb), "codes_a": a, "codes_b": b,
             "stability": jaccard,
         })
@@ -970,6 +971,27 @@ def assign_themes(codes_df: pl.DataFrame, themes_df: pl.DataFrame) -> pl.DataFra
     )
 
 
+def add_supporting_blogs(themes_df: pl.DataFrame,
+                         codes_df: pl.DataFrame) -> pl.DataFrame:
+    """Attach `supporting_blog_urls[]` to each theme.
+
+    A blog supports a theme if the blog entry was assigned to that theme. Blog
+    entries store their URL in `entry_id`, so the URLs are read directly.
+    """
+    per_theme: dict[str, set] = {}
+    for row in codes_df.iter_rows(named=True):
+        if row["source"] != "blog":
+            continue
+        for theme in row["themes"]:
+            per_theme.setdefault(theme, set()).add(row["entry_id"])
+    return themes_df.with_columns(
+        pl.col("name").map_elements(
+            lambda n: sorted(per_theme.get(n, set())),
+            return_dtype=pl.List(pl.Utf8),
+        ).alias("supporting_blog_urls")
+    )
+
+
 def run(embeddings: Path = Path("data/processed/embeddings.parquet")) -> None:
     items = pl.read_parquet(embeddings).select("entry_id", "text", "source", "date")
     codes_df = open_code(items)
@@ -978,6 +1000,7 @@ def run(embeddings: Path = Path("data/processed/embeddings.parquet")) -> None:
 
     themes_df = axial_code(codes_df)
     codes_df = assign_themes(codes_df, themes_df)
+    themes_df = add_supporting_blogs(themes_df, codes_df)
     codes_df.write_parquet("data/processed/codes.parquet")
     themes_df.write_parquet("data/processed/themes.parquet")
 
@@ -1077,8 +1100,12 @@ def answer(question: str, themes_path: Path = Path("data/processed/themes.parque
     theme_block = "\n".join(
         f"- {t['name']}: {t['description']}" for t in themes.iter_rows(named=True)
     )
+    # Changelog rows cite `version`; blog rows cite their URL (stored in
+    # entry_id). Always give the model the exact citation token to use.
     context = "\n\n".join(
-        f"[{r['source']} | version {r['version']} | {r['date']}] {r['text'][:600]}"
+        f"[{r['source']} | "
+        f"{'version ' + r['version'] if r['version'] else r['entry_id']} | "
+        f"{r['date']}] {r['text'][:600]}"
         for r in hits.iter_rows(named=True)
     )
     prompt = (f"Mental-model themes:\n{theme_block}\n\n"
@@ -1228,7 +1255,8 @@ mo.md("## Mental models reference")
 Cell:
 ```python
 mo.ui.data_explorer(themes.select(
-    "name", "description", "first_seen_date", "member_codes"
+    "name", "description", "first_seen_date", "member_codes",
+    "supporting_blog_urls"
 ))
 ```
 
