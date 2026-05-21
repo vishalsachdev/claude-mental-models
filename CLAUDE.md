@@ -23,7 +23,7 @@ months. `@research` project — pin versions, `uv` venv.
 
 **v1 shipped and merged to `main`.** Council-reviewed; limitations in `docs/methodology.md`.
 
-**Next: methodological rebuild** — plan at `docs/superpowers/plans/2026-05-21-analysis-improvement.md`.
+**Next: methodological rebuild** — spec at `docs/superpowers/specs/2026-05-21-analysis-improvement-design.md`.
 Fixes 9 named problems (cluster↔theme reconciliation, top-down bias, reflexivity,
 33% unassigned, etc.). 3 open questions — **resolved 2026-05-21**:
 1. Cross-model theme pass → **GPT-5.5**.
