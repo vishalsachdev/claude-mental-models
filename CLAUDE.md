@@ -25,10 +25,11 @@ months. `@research` project — pin versions, `uv` venv.
 
 **Next: methodological rebuild** — plan at `docs/superpowers/plans/2026-05-21-analysis-improvement.md`.
 Fixes 9 named problems (cluster↔theme reconciliation, top-down bias, reflexivity,
-33% unassigned, etc.). 3 open questions need decisions before execution:
-1. Independent model for cross-model theme pass — GPT-5.5, Gemini, or both?
-2. Unassigned residual — explicit "Maintenance" category, or its own analysis section?
-3. Is the headless blog re-scrape (A2) worth it, or defer?
+33% unassigned, etc.). 3 open questions — **resolved 2026-05-21**:
+1. Cross-model theme pass → **GPT-5.5**.
+2. Unassigned residual → **its own analysis section** (not a forced "Maintenance" category).
+3. Headless blog re-scrape (A2) → **yes, timeboxed** — single headless pass, accept
+   partial date recovery; don't iterate.
 
 Recommended path: brainstorm → spec → Codex Plan Reviewer → subagent-driven execution.
 
