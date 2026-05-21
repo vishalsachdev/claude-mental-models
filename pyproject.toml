@@ -1,0 +1,28 @@
+[project]
+name = "cmm"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Vishal Sachdev", email = "svishal2001@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "altair>=6.1.0",
+    "hdbscan>=0.8.43",
+    "httpx>=0.28.1",
+    "marimo>=0.23.6",
+    "pandas>=3.0.3",
+    "polars>=1.40.1",
+    "pyarrow>=24.0.0",
+    "sentence-transformers>=5.5.1",
+    "umap-learn>=0.5.12",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.6,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

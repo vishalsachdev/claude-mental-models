@@ -202,7 +202,8 @@ Python via `uv` venv, all versions pinned (`@research` convention):
 - `hdbscan`, `umap-learn` — clustering + 2D projection
 - `polars` — dataframes
 - `httpx` — HTTP collection
-- `anthropic` — LLM classification, thematic coding, RAG answering
+- local `claude` CLI (headless) — LLM classification, thematic coding, RAG
+  answering (subscription auth — no `ANTHROPIC_API_KEY`, no API credits)
 - `altair` or `plotly` — charts
 
 ## 10. Phasing

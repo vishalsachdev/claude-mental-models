@@ -6,7 +6,7 @@
 
 **Architecture:** Plain Python scripts (`src/`) collect and process data into `data/processed/` (Parquet); all network/LLM calls are content-hash cached. A marimo notebook (`notebooks/analysis.py`) reads only processed data and renders charts plus a RAG chat panel. Parsers are TDD'd against saved HTML/Markdown fixtures; analysis stages are validated by inspection.
 
-**Tech Stack:** Python 3.12, `uv`, `marimo`, `polars`, `httpx`, `sentence-transformers`, `hdbscan`, `umap-learn`, `anthropic`, `altair`, `pytest`.
+**Tech Stack:** Python 3.12, `uv`, `marimo`, `polars`, `httpx`, `sentence-transformers`, `hdbscan`, `umap-learn`, `altair`, `pytest`. LLM calls shell out to the local `claude` CLI in headless mode (subscription auth — no `ANTHROPIC_API_KEY`, no API credits).
 
 ---
 
@@ -22,7 +22,7 @@
 | `src/cmm/embed_cluster.py` | embeddings + HDBSCAN + UMAP |
 | `src/cmm/thematic_coding.py` | LLM open→axial coding |
 | `src/cmm/rag.py` | retriever + Claude chat model for the notebook |
-| `src/cmm/llm.py` | thin cached Anthropic API wrapper |
+| `src/cmm/llm.py` | cached wrapper around the headless `claude` CLI |
 | `notebooks/analysis.py` | the marimo deliverable |
 | `tests/test_collect_changelog.py` | parser unit tests |
 | `tests/test_collect_blogs.py` | parser unit tests |
@@ -50,9 +50,12 @@ uv init --no-readme --package --name cmm .
 
 Run:
 ```bash
-uv add marimo polars httpx sentence-transformers hdbscan umap-learn anthropic altair
+uv add marimo polars httpx sentence-transformers hdbscan umap-learn altair
 uv add --dev pytest
 ```
+
+LLM calls use the local `claude` CLI (already installed, subscription auth), so
+no `anthropic` SDK dependency and no API key are needed.
 
 - [ ] **Step 3: Create directory placeholders and .gitignore**
 
@@ -78,7 +81,7 @@ touch src/cmm/__init__.py data/raw/.gitkeep data/processed/.gitkeep data/cache/.
 
 - [ ] **Step 4: Verify the environment**
 
-Run: `uv run python -c "import marimo, polars, httpx, anthropic; print('ok')"`
+Run: `uv run python -c "import marimo, polars, httpx; print('ok')"` (and confirm the `claude` CLI is available: `claude --version`)
 Expected: `ok`
 
 - [ ] **Step 5: Commit**
@@ -601,7 +604,12 @@ git commit -m "feat: Anthropic blog crawler with cached fetches"
 
 ---
 
-## Task 5: Cached Anthropic LLM wrapper
+## Task 5: Cached LLM wrapper (headless `claude` CLI)
+
+LLM calls shell out to the local `claude` CLI in headless `--print` mode. This
+authenticates against the user's Claude subscription — no `ANTHROPIC_API_KEY`
+and no pay-as-you-go API credits. `--strict-mcp-config` with an empty MCP config
+and a custom `--system-prompt` keep each call lean.
 
 **Files:**
 - Create: `src/cmm/llm.py`
@@ -610,39 +618,43 @@ git commit -m "feat: Anthropic blog crawler with cached fetches"
 
 ```python
 # src/cmm/llm.py
-"""Thin, cached wrapper around the Anthropic Messages API."""
-import json
-import os
+"""Cached LLM wrapper that shells out to the local `claude` CLI.
 
-from anthropic import Anthropic
+Headless `claude -p` authenticates via the user's Claude subscription, so no
+ANTHROPIC_API_KEY and no API credits are consumed.
+"""
+import json
+import subprocess
 
 from cmm.cache import cached_call
 
-MODEL = "claude-opus-4-7"
-_client: Anthropic | None = None
-
-
-def _get_client() -> Anthropic:
-    global _client
-    if _client is None:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise RuntimeError("ANTHROPIC_API_KEY not set")
-        _client = Anthropic()
-    return _client
+MODEL = "claude-sonnet-4-6"  # capable + fast enough for hundreds of cached calls
+_EMPTY_MCP = '{"mcpServers":{}}'  # disable MCP servers so each call stays lean
 
 
 def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> str:
-    """Return the model's text response. Cached by (system, prompt, model)."""
+    """Return the model's text response. Cached by (system, prompt, model).
+
+    `max_tokens` is part of the cache key for caller clarity but is not a hard
+    CLI limit.
+    """
+    system = system or "You are a precise research assistant."
     key = "llm::" + json.dumps({"s": system, "p": prompt, "m": MODEL, "t": max_tokens})
 
     def run() -> str:
-        msg = _get_client().messages.create(
-            model=MODEL,
-            max_tokens=max_tokens,
-            system=system or "You are a precise research assistant.",
-            messages=[{"role": "user", "content": prompt}],
+        proc = subprocess.run(
+            ["claude", "-p", "--output-format", "json",
+             "--strict-mcp-config", "--mcp-config", _EMPTY_MCP,
+             "--system-prompt", system, "--model", MODEL],
+            input=prompt, capture_output=True, text=True, timeout=300,
         )
-        return "".join(b.text for b in msg.content if b.type == "text")
+        if proc.returncode != 0:
+            raise RuntimeError(f"claude CLI failed (rc={proc.returncode}): "
+                               f"{proc.stderr.strip()}")
+        envelope = json.loads(proc.stdout)
+        if envelope.get("is_error"):
+            raise RuntimeError(f"claude CLI error: {envelope.get('result')}")
+        return envelope["result"]
 
     return cached_call(key, run)
 
@@ -660,17 +672,18 @@ def complete_json(prompt: str, system: str = "", max_tokens: int = 2000):
 
 - [ ] **Step 2: Smoke-test the wrapper**
 
-Ensure `ANTHROPIC_API_KEY` is set in the environment, then run:
+No API key needed — the `claude` CLI must simply be installed and logged in.
+Run:
 ```bash
-uv run python -c "from cmm.llm import complete_json; print(complete_json('Reply with JSON: {\"ok\": true}'))"
+uv run python -c "from cmm.llm import complete_json; print(complete_json('Reply with ONLY this JSON: {\"ok\": true}'))"
 ```
-Expected: `{'ok': True}`
+Expected: `{'ok': True}` (first call takes a few seconds; a second run is instant from cache).
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add src/cmm/llm.py
-git commit -m "feat: cached Anthropic LLM wrapper"
+git commit -m "feat: cached LLM wrapper via headless claude CLI"
 ```
 
 ---
@@ -871,6 +884,7 @@ git commit -m "feat: embeddings spine with HDBSCAN clustering and UMAP projectio
 ```python
 # src/cmm/thematic_coding.py
 """LLM thematic coding: two-pass open coding -> axial mental-model themes."""
+import concurrent.futures
 import json
 from pathlib import Path
 
@@ -907,24 +921,37 @@ def _codes_for(text: str, source: str, system: str) -> list[str]:
     return complete_json(prompt, system=system, max_tokens=300)["codes"]
 
 
-def open_code(items: pl.DataFrame) -> pl.DataFrame:
+def _code_one(row: dict) -> dict:
+    """Run both open-coding passes for a single item and score stability."""
+    a = _codes_for(row["text"], row["source"], OPEN_SYSTEM)
+    b = _codes_for(row["text"], row["source"], OPEN_SYSTEM_REVIEW)
+    sa, sb = set(a), set(b)
+    jaccard = len(sa & sb) / len(sa | sb) if (sa | sb) else 1.0
+    return {
+        "entry_id": row["entry_id"], "source": row["source"],
+        "date": row["date"],
+        "codes": sorted(sa | sb), "codes_a": a, "codes_b": b,
+        "stability": jaccard,
+    }
+
+
+def open_code(items: pl.DataFrame, max_workers: int = 8) -> pl.DataFrame:
     """Two independent open-coding passes per item, plus a stability score.
 
-    Columns: entry_id, date, codes (union of both passes), codes_a, codes_b,
-    stability (Jaccard overlap of the two passes — the audit signal).
+    Each item makes two `claude` CLI calls; calls are I/O-bound subprocesses,
+    so a thread pool parallelizes them. `ex.map` preserves input order and
+    re-raises any worker exception.
+
+    Columns: entry_id, source, date, codes (union of both passes), codes_a,
+    codes_b, stability (Jaccard overlap of the two passes — the audit signal).
     """
+    work = list(items.iter_rows(named=True))
     rows = []
-    for row in items.iter_rows(named=True):
-        a = _codes_for(row["text"], row["source"], OPEN_SYSTEM)
-        b = _codes_for(row["text"], row["source"], OPEN_SYSTEM_REVIEW)
-        sa, sb = set(a), set(b)
-        jaccard = len(sa & sb) / len(sa | sb) if (sa | sb) else 1.0
-        rows.append({
-            "entry_id": row["entry_id"], "source": row["source"],
-            "date": row["date"],
-            "codes": sorted(sa | sb), "codes_a": a, "codes_b": b,
-            "stability": jaccard,
-        })
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+        for i, result in enumerate(ex.map(_code_one, work), 1):
+            rows.append(result)
+            if i % 100 == 0:
+                print(f"  open-coded {i}/{len(work)}")
     return pl.DataFrame(rows)
 
 
@@ -1319,7 +1346,7 @@ evolving mental models of Claude Code use. See
 
 ```bash
 uv sync
-export ANTHROPIC_API_KEY=...
+# LLM calls use the local `claude` CLI (subscription auth) — no API key needed.
 uv run python -m cmm.collect_changelog
 uv run python -m cmm.collect_blogs
 uv run python -m cmm.tag_and_join
