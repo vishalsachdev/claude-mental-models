@@ -1,0 +1,18 @@
+{
+  "n_themes": 10,
+  "n_entries": 3018,
+  "n_unassigned": 1013,
+  "unassigned_fraction": 0.336,
+  "theme_entry_counts": {
+    "Context Is a Managed Resource": 285,
+    "The Harness Is Configurable": 433,
+    "Hooks as Automation Seams": 145,
+    "Permissions as Declarative Policy": 275,
+    "Skills and Plugins as the Extension Model": 301,
+    "Delegation to Subagents": 243,
+    "Sessions as Resumable Artifacts": 342,
+    "MCP as the Integration Protocol": 237,
+    "Memory as a Multi-Layer System": 27,
+    "Plans as Explicit, Reviewable Artifacts": 41
+  }
+}

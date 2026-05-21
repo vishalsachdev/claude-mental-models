@@ -19,8 +19,7 @@ _MAX_RETRIES = 5  # transient CLI/rate-limit failures recover with backoff
 def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> str:
     """Return the model's text response. Cached by (system, prompt, model).
 
-    `max_tokens` is part of the cache key for caller clarity but is not a hard
-    CLI limit.
+    `max_tokens` only varies the cache key; it is not enforced by the CLI.
     """
     system = system or "You are a precise research assistant."
     key = "llm::" + json.dumps({"s": system, "p": prompt, "m": MODEL, "t": max_tokens})

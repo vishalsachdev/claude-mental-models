@@ -33,7 +33,10 @@ def retrieve(question: str, k: int = 8) -> pl.DataFrame:
     """Return the k most similar corpus rows to the question."""
     _load()
     q = _model.encode([question])[0]
-    sims = _matrix @ q / (np.linalg.norm(_matrix, axis=1) * np.linalg.norm(q))
+    q_norm = np.linalg.norm(q)
+    if q_norm == 0:
+        raise ValueError("query embedding is a zero vector")
+    sims = _matrix @ q / (np.linalg.norm(_matrix, axis=1) * q_norm)
     top = np.argsort(sims)[::-1][:k]
     return _corpus[top.tolist()]
 

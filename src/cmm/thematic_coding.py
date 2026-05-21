@@ -128,7 +128,7 @@ def finalize_themes(themes_df: pl.DataFrame, codes_df: pl.DataFrame,
             "supporting_blog_urls": blog_urls,
             "example_entries": examples,
         })
-    return pl.DataFrame(rows)
+    return pl.DataFrame(rows, schema_overrides={"supporting_blog_urls": pl.List(pl.Utf8)})
 
 
 def run(embeddings: Path = Path("data/processed/embeddings.parquet")) -> None:
