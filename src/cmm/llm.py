@@ -5,6 +5,7 @@ Headless `claude -p` authenticates via the user's Claude subscription, so no
 ANTHROPIC_API_KEY and no API credits are consumed.
 """
 import json
+import re
 import subprocess
 import time
 
@@ -56,12 +57,38 @@ def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> str:
     return cached_call(key, run)
 
 
-def complete_json(prompt: str, system: str = "", max_tokens: int = 2000):
+def _extract_json(text: str):
+    """Parse JSON from a model response, tolerating fences and surrounding prose."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0] if "\n" in text else text
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    # Fallback: grab the outermost {...} or [...] block.
+    m = re.search(r"\{.*\}|\[.*\]", text, re.S)
+    if m:
+        return json.loads(m.group(0))
+    raise ValueError(f"no JSON found in response: {text[:200]!r}")
+
+
+def complete_json(prompt: str, system: str = "", max_tokens: int = 2000,
+                  retries: int = 3):
     """Like `complete`, but parse the response as JSON.
 
-    Strips a leading ```json fence if present.
+    Tolerates ```json fences and prose around the JSON. If the response is not
+    parseable, retries with a cache-busting nudge (a fresh model call) up to
+    `retries` times before raising.
     """
-    raw = complete(prompt, system, max_tokens).strip()
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
-    return json.loads(raw)
+    last_exc: Exception | None = None
+    for attempt in range(retries):
+        # Append the nudge `attempt` times so each retry is a distinct cache
+        # key (a fresh model call), not a re-read of the bad cached response.
+        p = prompt + "\n\n(Respond with valid JSON only — no prose.)" * attempt
+        raw = complete(p, system, max_tokens)
+        try:
+            return _extract_json(raw)
+        except (json.JSONDecodeError, ValueError) as exc:
+            last_exc = exc
+    raise RuntimeError(f"complete_json failed after {retries} attempts: {last_exc}")
