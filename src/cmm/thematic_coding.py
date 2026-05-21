@@ -51,7 +51,7 @@ def _code_one(row: dict) -> dict:
     }
 
 
-def open_code(items: pl.DataFrame, max_workers: int = 8) -> pl.DataFrame:
+def open_code(items: pl.DataFrame, max_workers: int = 16) -> pl.DataFrame:
     """Two independent open-coding passes per item, plus a stability score.
 
     Each item makes two `claude` CLI calls; calls are I/O-bound subprocesses,
