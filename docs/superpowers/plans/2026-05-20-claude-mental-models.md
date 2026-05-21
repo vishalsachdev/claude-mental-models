@@ -884,6 +884,7 @@ git commit -m "feat: embeddings spine with HDBSCAN clustering and UMAP projectio
 ```python
 # src/cmm/thematic_coding.py
 """LLM thematic coding: two-pass open coding -> axial mental-model themes."""
+import concurrent.futures
 import json
 from pathlib import Path
 
@@ -920,24 +921,37 @@ def _codes_for(text: str, source: str, system: str) -> list[str]:
     return complete_json(prompt, system=system, max_tokens=300)["codes"]
 
 
-def open_code(items: pl.DataFrame) -> pl.DataFrame:
+def _code_one(row: dict) -> dict:
+    """Run both open-coding passes for a single item and score stability."""
+    a = _codes_for(row["text"], row["source"], OPEN_SYSTEM)
+    b = _codes_for(row["text"], row["source"], OPEN_SYSTEM_REVIEW)
+    sa, sb = set(a), set(b)
+    jaccard = len(sa & sb) / len(sa | sb) if (sa | sb) else 1.0
+    return {
+        "entry_id": row["entry_id"], "source": row["source"],
+        "date": row["date"],
+        "codes": sorted(sa | sb), "codes_a": a, "codes_b": b,
+        "stability": jaccard,
+    }
+
+
+def open_code(items: pl.DataFrame, max_workers: int = 8) -> pl.DataFrame:
     """Two independent open-coding passes per item, plus a stability score.
 
-    Columns: entry_id, date, codes (union of both passes), codes_a, codes_b,
-    stability (Jaccard overlap of the two passes — the audit signal).
+    Each item makes two `claude` CLI calls; calls are I/O-bound subprocesses,
+    so a thread pool parallelizes them. `ex.map` preserves input order and
+    re-raises any worker exception.
+
+    Columns: entry_id, source, date, codes (union of both passes), codes_a,
+    codes_b, stability (Jaccard overlap of the two passes — the audit signal).
     """
+    work = list(items.iter_rows(named=True))
     rows = []
-    for row in items.iter_rows(named=True):
-        a = _codes_for(row["text"], row["source"], OPEN_SYSTEM)
-        b = _codes_for(row["text"], row["source"], OPEN_SYSTEM_REVIEW)
-        sa, sb = set(a), set(b)
-        jaccard = len(sa & sb) / len(sa | sb) if (sa | sb) else 1.0
-        rows.append({
-            "entry_id": row["entry_id"], "source": row["source"],
-            "date": row["date"],
-            "codes": sorted(sa | sb), "codes_a": a, "codes_b": b,
-            "stability": jaccard,
-        })
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+        for i, result in enumerate(ex.map(_code_one, work), 1):
+            rows.append(result)
+            if i % 100 == 0:
+                print(f"  open-coded {i}/{len(work)}")
     return pl.DataFrame(rows)
 
 
