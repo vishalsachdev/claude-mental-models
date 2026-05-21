@@ -10,6 +10,7 @@ dependencies = [
     "altair>=6.1.0",
     "hdbscan>=0.8.43",
     "httpx>=0.28.1",
+    "ipython>=9.13.0",
     "marimo>=0.23.6",
     "pandas>=3.0.3",
     "polars>=1.40.1",
