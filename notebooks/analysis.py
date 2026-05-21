@@ -101,8 +101,8 @@ def _(mo):
 @app.cell
 def _(mo, themes):
     mo.ui.data_explorer(themes.select(
-        "name", "description", "first_seen_date", "member_codes",
-        "supporting_blog_urls"
+        "name", "description", "first_seen_date", "entry_count",
+        "supporting_blog_urls", "example_entries"
     ))
 
 

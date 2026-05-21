@@ -1,5 +1,14 @@
 # src/cmm/thematic_coding.py
-"""LLM thematic coding: two-pass open coding -> axial mental-model themes."""
+"""Thematic coding: discover mental-model themes, then assign every entry.
+
+Two-stage design (replaces per-item free-text open coding, which produced
+~17k unique non-recurring codes that could not be axially aggregated):
+
+1. discover_themes  -- one LLM call over a stratified timeline sample yields
+   6-10 named mental models.
+2. assign_themes    -- every entry is assigned to those themes in parallel
+   batches, giving a direct entry->theme mapping.
+"""
 import concurrent.futures
 import json
 from pathlib import Path
@@ -8,161 +17,146 @@ import polars as pl
 
 from cmm.llm import complete_json
 
-OPEN_SYSTEM = (
-    "You are doing qualitative open coding of Claude Code release notes and "
-    "blog posts. For the given item, return JSON {\"codes\": [..]} with 1-3 "
-    "short conceptual codes describing what the user must understand or how "
-    "they must think differently. Codes are reusable phrases, not summaries."
+DISCOVER_SYSTEM = (
+    "You are a qualitative researcher studying how a developer's mental model "
+    "of using Claude Code (the CLI coding agent) had to evolve over a year of "
+    "releases. From the sample of release notes and blog excerpts, identify "
+    "6-10 named 'mental models' -- conceptual shifts a user had to internalize "
+    "to use the tool well (examples of the KIND of thing: 'context is a "
+    "managed resource', 'delegation to subagents', 'the harness is "
+    "configurable'). Return JSON {\"themes\": [{\"name\": ..., "
+    "\"description\": ...}]}. Names are short; each description is one "
+    "sentence naming the shift in thinking."
 )
 
-# Pass 2 deliberately differs in framing so its cache key differs and the two
-# passes are genuinely independent — their agreement is the consistency audit.
-OPEN_SYSTEM_REVIEW = (
-    "You are independently re-coding a Claude Code release item for a "
-    "qualitative study. Ignore any prior coding. Return JSON {\"codes\": [..]} "
-    "with 1-3 short, reusable conceptual codes naming the shift in how a user "
-    "must think to use this feature well."
+ASSIGN_SYSTEM = (
+    "You assign Claude Code release items to mental-model themes. You are "
+    "given the theme list and a batch of items. For each item return the "
+    "theme name(s) it reflects -- usually 1, at most 2, or [] if none apply. "
+    "Use theme names exactly as given. Return JSON {\"assignments\": "
+    "[{\"entry_id\": ..., \"themes\": [...]}]}."
 )
 
-AXIAL_SYSTEM = (
-    "You are doing axial coding. Given a list of open codes from Claude Code's "
-    "release history, group them into 6-10 named 'mental models' a user had to "
-    "develop. Return JSON {\"themes\": [{\"name\":..., \"description\":..., "
-    "\"member_codes\":[...]}]}. Every input code must belong to exactly one theme."
-)
+SAMPLE_SIZE = 150
+BATCH_SIZE = 25
 
 
-def _codes_for(text: str, source: str, system: str) -> list[str]:
-    prompt = f"Source: {source}\nItem: {text[:1200]}"
-    return complete_json(prompt, system=system, max_tokens=300)["codes"]
+def discover_themes(items: pl.DataFrame) -> pl.DataFrame:
+    """One LLM call over a stratified timeline sample -> named themes.
 
-
-def _code_one(row: dict) -> dict:
-    """Run both open-coding passes for a single item and score stability."""
-    a = _codes_for(row["text"], row["source"], OPEN_SYSTEM)
-    b = _codes_for(row["text"], row["source"], OPEN_SYSTEM_REVIEW)
-    sa, sb = set(a), set(b)
-    jaccard = len(sa & sb) / len(sa | sb) if (sa | sb) else 1.0
-    return {
-        "entry_id": row["entry_id"], "source": row["source"],
-        "date": row["date"],
-        "codes": sorted(sa | sb), "codes_a": a, "codes_b": b,
-        "stability": jaccard,
-    }
-
-
-def open_code(items: pl.DataFrame, max_workers: int = 16) -> pl.DataFrame:
-    """Two independent open-coding passes per item, plus a stability score.
-
-    Each item makes two `claude` CLI calls; calls are I/O-bound subprocesses,
-    so a thread pool parallelizes them. `ex.map` preserves input order and
-    re-raises any worker exception.
-
-    Columns: entry_id, source, date, codes (union of both passes), codes_a,
-    codes_b, stability (Jaccard overlap of the two passes — the audit signal).
+    Returns a DataFrame with columns: name, description.
     """
-    work = list(items.iter_rows(named=True))
-    rows = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
-        for i, result in enumerate(ex.map(_code_one, work), 1):
-            rows.append(result)
-            if i % 100 == 0:
-                print(f"  open-coded {i}/{len(work)}")
-    return pl.DataFrame(rows)
-
-
-def axial_code(codes_df: pl.DataFrame) -> pl.DataFrame:
-    """Group all open codes into named mental-model themes."""
-    all_codes = sorted({c for codes in codes_df["codes"].to_list() for c in codes})
+    dated = items.filter(pl.col("date").is_not_null()).sort("date")
+    n = dated.height
+    if n > SAMPLE_SIZE:
+        idx = [round(i * (n - 1) / (SAMPLE_SIZE - 1)) for i in range(SAMPLE_SIZE)]
+        sample = dated[idx]
+    else:
+        sample = dated
+    listing = "\n".join(f"- ({r['source']}, {r['date']}) {r['text'][:200]}"
+                        for r in sample.iter_rows(named=True))
     result = complete_json(
-        "Open codes:\n" + "\n".join(f"- {c}" for c in all_codes),
-        system=AXIAL_SYSTEM, max_tokens=4000,
+        f"Sample of {sample.height} Claude Code release items, oldest first:\n"
+        f"{listing}",
+        system=DISCOVER_SYSTEM, max_tokens=2000,
     )
-    # earliest date any member code appears => theme first_seen_date
-    code_dates: dict[str, str] = {}
-    for row in codes_df.iter_rows(named=True):
-        for c in row["codes"]:
-            if row["date"] and (c not in code_dates or row["date"] < code_dates[c]):
-                code_dates[c] = row["date"]
-    themes = []
-    for t in result["themes"]:
-        member_dates = [code_dates[c] for c in t["member_codes"] if c in code_dates]
-        themes.append({
+    return pl.DataFrame(result["themes"])
+
+
+def _assign_batch(batch: list[dict], theme_block: str) -> list[dict]:
+    """Assign one batch of items to themes via a single LLM call."""
+    listing = "\n".join(f"[{r['entry_id']}] ({r['source']}) {r['text'][:200]}"
+                        for r in batch)
+    result = complete_json(
+        f"Themes:\n{theme_block}\n\nItems:\n{listing}",
+        system=ASSIGN_SYSTEM, max_tokens=2000,
+    )
+    return result["assignments"]
+
+
+def assign_themes(items: pl.DataFrame, themes_df: pl.DataFrame,
+                  max_workers: int = 12) -> pl.DataFrame:
+    """Assign every entry to theme(s) in parallel batches.
+
+    Returns a DataFrame with columns: entry_id, source, date, themes.
+    """
+    theme_block = "\n".join(f"- {t['name']}: {t['description']}"
+                            for t in themes_df.iter_rows(named=True))
+    valid = set(themes_df["name"].to_list())
+    rows = list(items.iter_rows(named=True))
+    batches = [rows[i:i + BATCH_SIZE] for i in range(0, len(rows), BATCH_SIZE)]
+
+    assigned: dict[str, list[str]] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = [ex.submit(_assign_batch, b, theme_block) for b in batches]
+        for i, fut in enumerate(concurrent.futures.as_completed(futures), 1):
+            for a in fut.result():
+                assigned[a["entry_id"]] = [t for t in a.get("themes", [])
+                                           if t in valid]
+            if i % 20 == 0:
+                print(f"  assigned batch {i}/{len(batches)}")
+
+    return items.with_columns(
+        pl.col("entry_id").map_elements(
+            lambda e: assigned.get(e, []), return_dtype=pl.List(pl.Utf8)
+        ).alias("themes")
+    ).select("entry_id", "source", "date", "themes")
+
+
+def finalize_themes(themes_df: pl.DataFrame, codes_df: pl.DataFrame,
+                    items: pl.DataFrame) -> pl.DataFrame:
+    """Enrich themes with first_seen_date, entry_count, blog support, examples.
+
+    Columns out: name, description, first_seen_date, entry_count,
+    supporting_blog_urls, example_entries.
+    """
+    text_by_id = dict(zip(items["entry_id"].to_list(), items["text"].to_list()))
+    exploded = codes_df.explode("themes").drop_nulls("themes")
+    rows = []
+    for t in themes_df.iter_rows(named=True):
+        mem = exploded.filter(pl.col("themes") == t["name"])
+        dates = [d for d in mem["date"].to_list() if d]
+        blog_urls = sorted(mem.filter(pl.col("source") == "blog")
+                           ["entry_id"].to_list())
+        examples = [text_by_id.get(e, "")[:160]
+                    for e in mem["entry_id"].to_list()[:3]]
+        rows.append({
             "name": t["name"],
             "description": t["description"],
-            "member_codes": t["member_codes"],
-            "first_seen_date": min(member_dates) if member_dates else None,
+            "first_seen_date": min(dates) if dates else None,
+            "entry_count": mem.height,
+            "supporting_blog_urls": blog_urls,
+            "example_entries": examples,
         })
-    return pl.DataFrame(themes)
-
-
-def assign_themes(codes_df: pl.DataFrame, themes_df: pl.DataFrame) -> pl.DataFrame:
-    """Add a `themes` column: theme name(s) each entry belongs to.
-
-    An entry belongs to a theme if any of its codes is one of the theme's
-    member_codes. This is the entry<->theme mapping the notebook needs to
-    color clusters and chart theme weight over time.
-    """
-    code_to_theme = {c: t["name"]
-                     for t in themes_df.iter_rows(named=True)
-                     for c in t["member_codes"]}
-    return codes_df.with_columns(
-        pl.col("codes").map_elements(
-            lambda cs: sorted({code_to_theme[c] for c in cs if c in code_to_theme}),
-            return_dtype=pl.List(pl.Utf8),
-        ).alias("themes")
-    )
-
-
-def add_supporting_blogs(themes_df: pl.DataFrame,
-                         codes_df: pl.DataFrame) -> pl.DataFrame:
-    """Attach `supporting_blog_urls[]` to each theme.
-
-    A blog supports a theme if the blog entry was assigned to that theme. Blog
-    entries store their URL in `entry_id`, so the URLs are read directly.
-    """
-    per_theme: dict[str, set] = {}
-    for row in codes_df.iter_rows(named=True):
-        if row["source"] != "blog":
-            continue
-        for theme in row["themes"]:
-            per_theme.setdefault(theme, set()).add(row["entry_id"])
-    return themes_df.with_columns(
-        pl.col("name").map_elements(
-            lambda n: sorted(per_theme.get(n, set())),
-            return_dtype=pl.List(pl.Utf8),
-        ).alias("supporting_blog_urls")
-    )
+    return pl.DataFrame(rows)
 
 
 def run(embeddings: Path = Path("data/processed/embeddings.parquet")) -> None:
     items = pl.read_parquet(embeddings).select("entry_id", "text", "source", "date")
-    codes_df = open_code(items)
-    print(f"Open-coded {codes_df.height} items "
-          f"(mean pass-agreement {codes_df['stability'].mean():.2f})")
 
-    themes_df = axial_code(codes_df)
-    codes_df = assign_themes(codes_df, themes_df)
-    themes_df = add_supporting_blogs(themes_df, codes_df)
+    themes_df = discover_themes(items)
+    print(f"Discovered {themes_df.height} mental-model themes")
+
+    codes_df = assign_themes(items, themes_df)
+    themes_df = finalize_themes(themes_df, codes_df, items)
     codes_df.write_parquet("data/processed/codes.parquet")
     themes_df.write_parquet("data/processed/themes.parquet")
 
-    # Consistency audit: entries whose two open-coding passes disagreed most.
-    low = codes_df.filter(pl.col("stability") < 0.5)
+    # Audit: how cleanly the corpus partitioned into themes.
+    unassigned = codes_df.filter(pl.col("themes").list.len() == 0).height
     audit = {
-        "mean_stability": codes_df["stability"].mean(),
-        "n_low_stability": low.height,
-        "low_stability_entries": low.select(
-            "entry_id", "codes_a", "codes_b", "stability"
-        ).to_dicts(),
+        "n_themes": themes_df.height,
+        "n_entries": codes_df.height,
+        "n_unassigned": unassigned,
+        "unassigned_fraction": round(unassigned / codes_df.height, 3),
+        "theme_entry_counts": dict(zip(themes_df["name"].to_list(),
+                                       themes_df["entry_count"].to_list())),
     }
     Path("data/processed/coding_audit.json").write_text(json.dumps(audit, indent=2))
 
-    print(f"Derived {themes_df.height} mental-model themes:")
-    for name in themes_df["name"].to_list():
-        print(f"  - {name}")
-    print(f"Audit: {low.height} low-stability entries -> "
-          f"data/processed/coding_audit.json")
+    print(f"Assigned {codes_df.height} entries ({unassigned} unassigned):")
+    for t in themes_df.iter_rows(named=True):
+        print(f"  - {t['name']} ({t['entry_count']}, first {t['first_seen_date']})")
 
 
 if __name__ == "__main__":
