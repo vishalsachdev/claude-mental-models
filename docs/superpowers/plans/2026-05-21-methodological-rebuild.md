@@ -27,6 +27,12 @@ New / changed Parquet files under `data/processed/`:
 | `codes.parquet` | B4 (re-assigned) | `entry_id, source, date, themes (list[str])` |
 | `coherence.parquet` | C1 | `theme (str), cluster_spread (int), top_cluster (int), top_cluster_share (float), coherence_score (float)` |
 | `audit_sample.csv` | C4 | `entry_id, text, stratum, assigned_themes, top_cluster, agree (blank)` |
+| `anchor_themes.parquet` | B1.5 | `name (str), description (str), source_clusters (list[int])` — canonical anchor set; consumed by B4 (T8), B7 (T11), C1 (T12) |
+| `independent_derivation.json` | B3 | `{"themes": [{"name", "description"}]}` — committed raw GPT-5.5 output so B3 never silently re-calls Codex |
+| `mini_themes.parquet` | B1 | `cluster_label (int), mini_theme (str), description (str)` |
+| `residual_analysis.json` | B6 | `{residual_count, residual_fraction, by_source, examples}` — read by the notebook (C2) |
+| `coding_audit.json` | B7 | `{n_themes, n_entries, residual_count, residual_fraction, confidence_tiers, evidence_tiers}` |
+| `run_metrics.json` | A2 + A3 | `{blog_undated_count, blog_total, cluster_count}` — persists A2/A3 figures so C3 (T14) updates methodology without relying on console scrollback |
 
 `confidence_tier` ∈ `{high, provisional, bottom_up_only}`. `evidence_tier` ∈ `{core, minor}`.
 
@@ -153,7 +159,7 @@ git commit -m "fix(A1): full-depth changelog clone + clone-horizon assertion"
 
 **Context:** `collect_blogs.py` already crawls index pages and extracts posts with `extract_post` (regex over HTML). The index crawl is fine. The problem is post *bodies* and *dates*: anthropic.com post pages are a JS SPA, so `httpx` gets a shell. A2 renders each post URL in a headless browser and feeds the rendered HTML to the existing `extract_post`. **Timeboxed: one render pass per URL, accept whatever dates come back.**
 
-The render uses the `agent-browser` CLI (available in this environment). It exposes `agent-browser navigate <url>` and `agent-browser get-html`. The wrapper shells out to it, mirroring the `claude` CLI pattern in `llm.py`, and caches each rendered page.
+The render uses the `agent-browser` CLI (available in this environment). The wrapper shells out to it, mirroring the `claude` CLI pattern in `llm.py`, and caches each rendered page. **The exact `agent-browser` subcommand is not assumed — Step 3 requires verifying it with `agent-browser --help` first.** `render_blogs.py` must NOT import `collect_blogs` at module scope (`collect_blogs` imports `render_blogs`, so a module-level back-import would be circular); it imports `extract_post` lazily inside the function.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -200,7 +206,6 @@ title/date/body with collect_blogs.extract_post. Timeboxed: one pass, no retry.
 import subprocess
 
 from cmm.cache import cached_call
-from cmm.collect_blogs import extract_post
 
 _RENDER_TIMEOUT = 60  # seconds; one shot, no retry per the spec's timebox
 
@@ -239,6 +244,8 @@ def merge_rendered(static: dict, rendered: dict) -> dict:
 
 def render_post(static_post: dict) -> dict:
     """Render one post URL and merge the result over the static post dict."""
+    from cmm.collect_blogs import extract_post  # lazy: avoids circular import
+
     html = render_html(static_post["url"])
     if not html:
         return static_post
@@ -276,17 +283,23 @@ Run:
 uv run python -m cmm.collect_blogs
 uv run python -m cmm.tag_and_join
 ```
-Expected: the `WARNING: N posts have no parsed date` line reports fewer undated posts than the v1 baseline of 14. Record the new number — that recovery figure goes into `docs/methodology.md` in Task 14.
+Expected: the `WARNING: N posts have no parsed date` line reports fewer undated posts than the v1 baseline of 14.
 
-Verify:
+Then persist the figures to `run_metrics.json` (Task 14 reads this file — do not rely on console output):
 ```bash
-uv run python -c "import polars as pl; b=pl.read_parquet('data/processed/blogs.parquet'); print('posts',b.height,'undated',b['date'].null_count())"
+uv run python -c "
+import json, polars as pl
+b = pl.read_parquet('data/processed/blogs.parquet')
+m = {'blog_total': b.height, 'blog_undated_count': b['date'].null_count()}
+json.dump(m, open('data/processed/run_metrics.json','w'), indent=2)
+print(m)
+"
 ```
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cmm/render_blogs.py src/cmm/collect_blogs.py tests/test_render_blogs.py data/processed/blogs.parquet data/processed/joins.parquet
+git add src/cmm/render_blogs.py src/cmm/collect_blogs.py tests/test_render_blogs.py data/processed/blogs.parquet data/processed/joins.parquet data/processed/run_metrics.json
 git commit -m "feat(A2): headless-render blog posts to recover dates and full bodies"
 ```
 
@@ -323,7 +336,18 @@ Run:
 ```bash
 uv run python -m cmm.embed_cluster
 ```
-Expected: prints `Embedded N items into M clusters`. Record M (the new cluster count) — B1 generates one mini-theme per cluster.
+Expected: prints `Embedded N items into M clusters`. Then add the cluster count to `run_metrics.json` (Task 14 reads it; this updates the file A2 created):
+```bash
+uv run python -c "
+import json, polars as pl
+e = pl.read_parquet('data/processed/embeddings.parquet')
+n = e['cluster_label'].n_unique() - (1 if -1 in e['cluster_label'].to_list() else 0)
+m = json.load(open('data/processed/run_metrics.json'))
+m['cluster_count'] = int(n)
+json.dump(m, open('data/processed/run_metrics.json','w'), indent=2)
+print(m)
+"
+```
 
 - [ ] **Step 3: Hand-inspect 5 clusters for semantic coherence**
 
@@ -344,7 +368,7 @@ Expected: read the output. Each cluster's entries should share a *topic* (e.g. a
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cmm/embed_cluster.py data/processed/embeddings.parquet
+git add src/cmm/embed_cluster.py data/processed/embeddings.parquet data/processed/run_metrics.json
 git commit -m "feat(A3): all-mpnet-base-v2 embeddings + 12-D UMAP re-clustering"
 ```
 
@@ -776,13 +800,25 @@ from cmm.codex_llm import complete_json as codex_json
 from cmm.thematic_coding import DISCOVER_SYSTEM, SAMPLE_SIZE
 
 
+_INDEP_JSON = Path("data/processed/independent_derivation.json")
+
+
 def independent_themes(items: pl.DataFrame) -> pl.DataFrame:
     """B3: top-down theme discovery run on GPT-5.5 via codex.
 
     Uses the SAME discovery prompt as B2 (cmm.thematic_coding.DISCOVER_SYSTEM)
     and the same stratified-sample construction, so the only variable is the
     model. Returns columns: name, description.
+
+    Reproducibility: the raw GPT-5.5 result is persisted to
+    `independent_derivation.json` (committed). If that file exists this
+    function reads it instead of calling Codex — so a re-run on a fresh clone
+    never silently re-invokes a nondeterministic model.
     """
+    import json
+    if _INDEP_JSON.exists():
+        return pl.DataFrame(json.loads(_INDEP_JSON.read_text())["themes"])
+
     dated = items.filter(pl.col("date").is_not_null()).sort("date")
     n = dated.height
     if n > SAMPLE_SIZE:
@@ -796,6 +832,7 @@ def independent_themes(items: pl.DataFrame) -> pl.DataFrame:
         f"Sample of {sample.height} Claude Code release items, oldest first:\n"
         f"{listing}",
         system=DISCOVER_SYSTEM, max_tokens=2000)
+    _INDEP_JSON.write_text(json.dumps({"themes": r["themes"]}, indent=2))
     return pl.DataFrame(r["themes"])
 
 
@@ -842,9 +879,11 @@ Expected: three derivation groups present. `bottom_up` has 10–15 rows; `top_do
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cmm/theme_derivations.py data/processed/derivations.parquet
+git add src/cmm/theme_derivations.py data/processed/derivations.parquet data/processed/independent_derivation.json
 git commit -m "feat(B2/B3): top-down + GPT-5.5 independent theme derivations"
 ```
+
+> `independent_derivation.json` is committed deliberately: it is the durable, reproducible record of the GPT-5.5 derivation. Never delete it — doing so makes a re-run call Codex again with a different result.
 
 ---
 
@@ -1022,7 +1061,8 @@ from cmm.triangulate import extractive_violations
 
 
 def test_extractive_violations_none_when_all_words_grounded():
-    desc = "Users learned to manage context windows"
+    # every salient word (>4 chars, non-stopword) appears verbatim in a member
+    desc = "Users learned to manage the context window"
     member_texts = ["Added context window compaction", "manage long sessions"]
     assert extractive_violations(desc, member_texts) == []
 
@@ -1155,8 +1195,9 @@ def test_label_unassigned_labels_empty_theme_lists():
         "themes": [["T1"], [], []],
     })
     out = label_unassigned(codes)
-    assert out.filter(_pl.col("entry_id") == "a")["themes"].item().to_list() == ["T1"]
-    assert out.filter(_pl.col("entry_id") == "b")["themes"].item().to_list() == [MAINTENANCE]
+    # ["themes"].to_list() on a List-dtype column yields a list of lists; [0] picks the row
+    assert out.filter(_pl.col("entry_id") == "a")["themes"].to_list()[0] == ["T1"]
+    assert out.filter(_pl.col("entry_id") == "b")["themes"].to_list()[0] == [MAINTENANCE]
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1665,7 +1706,11 @@ In `src/cmm/thematic_coding.py`, the `DISCOVER_SYSTEM` string says "how a develo
 
 - [ ] **Step 4: Update `methodology.md`**
 
-In `docs/methodology.md`, add a section describing the triangulated design: the three derivations, anchor-on-B1 triangulation, confidence tiers, the coherence output, and the labelled residual. Record the A2 date-recovery number and the A3 cluster count. State that B3 used GPT-5.5 via `codex exec`.
+First read the persisted figures:
+```bash
+cat data/processed/run_metrics.json
+```
+This gives `blog_total`, `blog_undated_count`, and `cluster_count`. In `docs/methodology.md`, add a section describing the triangulated design: the three derivations, anchor-on-B1 triangulation, confidence tiers, the coherence output, and the labelled residual. Cite the `run_metrics.json` figures (blog date recovery: `blog_total - blog_undated_count` dated; cluster count). State that B3 used GPT-5.5 via `codex exec`.
 
 - [ ] **Step 5: Verify no stray overreach remains**
 
@@ -1712,6 +1757,11 @@ def test_stratum_for_high_confidence_match():
 def test_stratum_for_disagreement():
     # assigned a theme but the entry sits in a cluster the theme doesn't own
     assert stratum_for(["T1"], theme_tier="high", coherent=False) == "disagreement"
+
+
+def test_stratum_for_provisional_match():
+    # coherent, but the theme is not high-confidence -> its own stratum
+    assert stratum_for(["T1"], theme_tier="provisional", coherent=True) == "provisional_match"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1727,7 +1777,9 @@ Create `src/cmm/audit_sample.py`:
 # src/cmm/audit_sample.py
 """C4: emit a stratified ~40-item sample for manual audit.
 
-Three strata: high-confidence theme matches, the Maintenance residual, and
+Four strata: high-confidence theme matches (theme is confidence_tier=high and
+the entry's cluster is the theme's top cluster), provisional matches (coherent
+but the theme is not high-confidence), the Maintenance residual, and
 cluster<->theme disagreements (entry's cluster is not the theme's top cluster).
 The user fills the `agree` column by hand; the rate goes into findings.md.
 """
@@ -1738,16 +1790,19 @@ import polars as pl
 
 from cmm.triangulate import MAINTENANCE_LABEL
 
-_PER_STRATUM = 14
+_PER_STRATUM = 10  # 4 strata x 10 ~= 40 audit rows
 
 
 def stratum_for(themes: list[str], theme_tier: str, coherent: bool) -> str:
-    """Classify one entry into an audit stratum."""
+    """Classify one entry into an audit stratum.
+
+    `theme_tier` is the confidence_tier of the entry's first assigned theme.
+    """
     if MAINTENANCE_LABEL in themes:
         return "residual"
     if not coherent:
         return "disagreement"
-    return "high_confidence"
+    return "high_confidence" if theme_tier == "high" else "provisional_match"
 
 
 def build_sample(codes: pl.DataFrame, embeddings: pl.DataFrame,
@@ -1764,8 +1819,8 @@ def build_sample(codes: pl.DataFrame, embeddings: pl.DataFrame,
     topcluster_by_theme = dict(zip(coherence["theme"].to_list(),
                                    coherence["top_cluster"].to_list()))
 
-    buckets: dict[str, list[dict]] = {"high_confidence": [], "residual": [],
-                                      "disagreement": []}
+    buckets: dict[str, list[dict]] = {"high_confidence": [], "provisional_match": [],
+                                      "residual": [], "disagreement": []}
     for r in codes.iter_rows(named=True):
         tlist = r["themes"]
         first = tlist[0] if tlist else MAINTENANCE_LABEL
