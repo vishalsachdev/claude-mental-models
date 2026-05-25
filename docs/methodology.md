@@ -54,8 +54,10 @@ Treat the deliverable as two layers with very different reliability:
    blogs are joined to changelog versions by date proximity (±14 days) plus
    shared feature words.
 4. **Embedding spine.** All ~3,000 items embedded with a local
-   `all-MiniLM-L6-v2` sentence-transformer; HDBSCAN over a 5-D UMAP reduction
-   yields **43 clusters**.
+   `all-mpnet-base-v2` sentence-transformer (a higher-capacity replacement
+   for the v1 MiniLM model — see rebuild §A3); HDBSCAN over a **12-D** UMAP
+   reduction (loosened from v1's 5-D) with `min_cluster_size=15`,
+   `min_samples=5`. Yields **43 clusters**.
 5. **Theme layer (triangulated — see §3).** Three independent derivations are
    produced, then reconciled into 13 anchor themes, then used to assign every
    item.
