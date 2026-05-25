@@ -1,0 +1,44 @@
+{
+  "themes": [
+    {
+      "name": "Thinking is a tool",
+      "description": "Users had to shift from treating Claude as always immediately acting to seeing deliberate reasoning modes as something to invoke, tune, or disable depending on task complexity."
+    },
+    {
+      "name": "Context is managed",
+      "description": "Users had to learn that context is a limited working resource shaped by memory, resumes, branches, PDFs, file references, and cache behavior rather than an invisible infinite conversation."
+    },
+    {
+      "name": "Permission is policy",
+      "description": "Users had to move from one-off approvals toward durable project, team, plugin, MCP, and command rules that define what the agent is allowed to do."
+    },
+    {
+      "name": "Agents are delegatable teammates",
+      "description": "Users had to understand that work can be split across custom subagents, skills, isolated worktrees, background tasks, and teammate-style workflows instead of staying in one linear chat."
+    },
+    {
+      "name": "The workspace is configurable",
+      "description": "Users had to see Claude Code less as a fixed CLI and more as a personal and organizational environment shaped by settings, keybindings, hooks, status lines, plugins, and managed policies."
+    },
+    {
+      "name": "Sessions are durable workspaces",
+      "description": "Users had to internalize that conversations can be resumed, branched, renamed, remotely controlled, backgrounded, and navigated as ongoing work records rather than disposable terminal exchanges."
+    },
+    {
+      "name": "Tools must be designed for agents",
+      "description": "Users had to shift from exposing arbitrary commands or integrations to building agent-friendly tools with clear schemas, authentication, diagnostics, and predictable behavior."
+    },
+    {
+      "name": "Autonomy needs boundaries",
+      "description": "Users had to learn that faster and more automatic modes are useful only when paired with explicit user instructions, review points, permission levels, and stop conditions."
+    },
+    {
+      "name": "Reliability is observable",
+      "description": "Users had to treat diagnostics, transcripts, usage tracking, progress messages, health checks, and error surfacing as part of normal operation, not only as debugging aids."
+    },
+    {
+      "name": "Claude Code spans surfaces",
+      "description": "Users had to adapt from a terminal-only model to a system that crosses VS Code, remote sessions, web and mobile control, Windows and PowerShell, cloud providers, and external connectors."
+    }
+  ]
+}

@@ -8,6 +8,70 @@ from pathlib import Path
 import polars as pl
 
 from cmm.llm import complete_json as claude_json
+from cmm.codex_llm import complete_json as codex_json
+from cmm.thematic_coding import DISCOVER_SYSTEM, SAMPLE_SIZE
+
+
+_INDEP_JSON = Path("data/processed/independent_derivation.json")
+
+
+def independent_themes(items: pl.DataFrame) -> pl.DataFrame:
+    """B3: top-down theme discovery run on GPT-5.5 via codex.
+
+    Uses the SAME discovery prompt as B2 (cmm.thematic_coding.DISCOVER_SYSTEM)
+    and the same stratified-sample construction, so the only variable is the
+    model. Returns columns: name, description.
+
+    Reproducibility: the raw GPT-5.5 result is persisted to
+    `independent_derivation.json` (committed). If that file exists this
+    function reads it instead of calling Codex -- so a re-run on a fresh clone
+    never silently re-invokes a nondeterministic model.
+    """
+    import json
+    if _INDEP_JSON.exists():
+        return pl.DataFrame(json.loads(_INDEP_JSON.read_text())["themes"])
+
+    dated = items.filter(pl.col("date").is_not_null()).sort("date")
+    n = dated.height
+    if n > SAMPLE_SIZE:
+        idx = [round(i * (n - 1) / (SAMPLE_SIZE - 1)) for i in range(SAMPLE_SIZE)]
+        sample = dated[idx]
+    else:
+        sample = dated
+    listing = "\n".join(f"- ({r['source']}, {r['date']}) {r['text'][:200]}"
+                        for r in sample.iter_rows(named=True))
+    r = codex_json(
+        f"Sample of {sample.height} Claude Code release items, oldest first:\n"
+        f"{listing}",
+        system=DISCOVER_SYSTEM, max_tokens=2000)
+    _INDEP_JSON.write_text(json.dumps({"themes": r["themes"]}, indent=2))
+    return pl.DataFrame(r["themes"])
+
+
+def run_derivations(embeddings: Path = Path("data/processed/embeddings.parquet"),
+                    out: Path = Path("data/processed/derivations.parquet")) -> None:
+    """Append B2 (top_down) and B3 (independent) rows to derivations.parquet.
+
+    Assumes run_b15 has already written the bottom_up rows.
+    """
+    from cmm.thematic_coding import discover_themes
+
+    emb = pl.read_parquet(embeddings)
+    items = emb.select("entry_id", "text", "source", "date")
+
+    b2 = discover_themes(items).select(
+        pl.lit("top_down").alias("derivation"),
+        pl.col("name").alias("theme_name"), pl.col("description"))
+    b3 = independent_themes(items).select(
+        pl.lit("independent").alias("derivation"),
+        pl.col("name").alias("theme_name"), pl.col("description"))
+
+    existing = pl.read_parquet(out)  # bottom_up rows from run_b15
+    combined = pl.concat([existing.filter(pl.col("derivation") == "bottom_up"),
+                          b2, b3])
+    combined.write_parquet(out)
+    print(f"Derivations: bottom_up={existing.height} top_down={b2.height} "
+          f"independent={b3.height}")
 
 MINI_SYSTEM = (
     "You are a qualitative researcher. You are given a cluster of Claude Code "
