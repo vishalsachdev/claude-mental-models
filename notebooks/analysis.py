@@ -349,28 +349,28 @@ selected persona must build a mental model for (relevance = `high` or
 
 @app.cell
 def _(pl, alt, mo, codes, persona, persona_relevance):
-    selected_p = persona.value or "vibe_coder"
-    relevant_themes = set(
+    emerge_persona = persona.value or "vibe_coder"
+    emerge_themes = set(
         persona_relevance.filter(
-            (pl.col("persona") == selected_p) &
+            (pl.col("persona") == emerge_persona) &
             (pl.col("relevance").is_in(["high", "medium"]))
         )["theme"].to_list()
     )
-    theme_growth = (
+    emerge_growth = (
         codes.explode("themes").drop_nulls("themes")
         .filter(pl.col("date").is_not_null())
-        .filter(pl.col("themes").is_in(list(relevant_themes)))
+        .filter(pl.col("themes").is_in(list(emerge_themes)))
         .with_columns(pl.col("date").str.to_date().dt.truncate("1mo").alias("month"))
         .group_by("month", "themes").len().sort("month")
         .with_columns(pl.col("len").cum_sum().over("themes").alias("weight"))
     )
-    chart_emerge = alt.Chart(theme_growth.to_pandas()).mark_area().encode(
+    chart_emerge = alt.Chart(emerge_growth.to_pandas()).mark_area().encode(
         x="month:T",
         y=alt.Y("weight:Q", stack="center", title="cumulative coded entries"),
         color=alt.Color("themes:N", title="competency theme"),
     ).properties(
-        title=f"Theme emergence — {selected_p} (high + medium relevance only, "
-              f"{len(relevant_themes)} themes)",
+        title=f"Theme emergence — {emerge_persona} (high + medium relevance, "
+              f"{len(emerge_themes)} themes)",
         width=700,
     )
     mo.ui.altair_chart(chart_emerge)
