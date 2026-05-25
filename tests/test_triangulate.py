@@ -30,3 +30,21 @@ def test_extractive_violations_flags_ungrounded_salient_word():
     member_texts = ["Added subagent delegation support"]
     viol = extractive_violations(desc, member_texts)
     assert "quantum" in viol and "telepathy" in viol
+
+
+import polars as _pl
+from cmm.triangulate import label_unassigned
+
+MAINTENANCE = "Maintenance / no conceptual shift"
+
+
+def test_label_unassigned_labels_empty_theme_lists():
+    codes = _pl.DataFrame({
+        "entry_id": ["a", "b", "c"],
+        "source": ["changelog"] * 3,
+        "date": ["2025-03-01"] * 3,
+        "themes": [["T1"], [], []],
+    })
+    out = label_unassigned(codes)
+    assert out.filter(_pl.col("entry_id") == "a")["themes"].to_list()[0] == ["T1"]
+    assert out.filter(_pl.col("entry_id") == "b")["themes"].to_list()[0] == [MAINTENANCE]

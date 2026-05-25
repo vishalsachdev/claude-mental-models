@@ -66,6 +66,39 @@ def triangulate(anchor: pl.DataFrame, derivations: pl.DataFrame) -> pl.DataFrame
     return pl.DataFrame(rows, schema_overrides={"source_clusters": pl.List(pl.Int64)})
 
 
+MAINTENANCE_LABEL = "Maintenance / no conceptual shift"
+
+
+def label_unassigned(codes: pl.DataFrame) -> pl.DataFrame:
+    """Replace empty theme lists with the explicit Maintenance label."""
+    return codes.with_columns(
+        pl.when(pl.col("themes").list.len() == 0)
+        .then(pl.lit([MAINTENANCE_LABEL]))
+        .otherwise(pl.col("themes"))
+        .alias("themes"))
+
+
+def residual_analysis(codes_before_label: pl.DataFrame,
+                      embeddings: pl.DataFrame) -> dict:
+    """Summarise the unassigned residual: size, change-type mix, examples.
+
+    `codes_before_label` is codes BEFORE label_unassigned ran (empty lists
+    still empty). Returns a dict written to residual_analysis.json.
+    """
+    residual = codes_before_label.filter(pl.col("themes").list.len() == 0)
+    text_by_id = dict(zip(embeddings["entry_id"].to_list(),
+                          embeddings["text"].to_list()))
+    total = codes_before_label.height
+    return {
+        "residual_count": residual.height,
+        "residual_fraction": round(residual.height / total, 3) if total else 0.0,
+        "by_source": dict(residual.group_by("source").len()
+                          .iter_rows()),
+        "examples": [text_by_id.get(e, "")[:160]
+                     for e in residual["entry_id"].to_list()[:12]],
+    }
+
+
 def assign_to_anchor(anchor: pl.DataFrame, embeddings: pl.DataFrame) -> pl.DataFrame:
     """Re-assign every corpus entry to the final anchor theme set.
 

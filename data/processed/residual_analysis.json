@@ -1,0 +1,22 @@
+{
+  "residual_count": 47,
+  "residual_fraction": 0.015,
+  "by_source": {
+    "changelog": 41,
+    "blog": 6
+  },
+  "examples": [
+    "Internal infrastructure improvements (no user-facing changes)",
+    "Internal fixes",
+    "[VSCode] Fixed extension failing to activate on Windows",
+    "Fixed parallel sessions all dead-ending at 401 after a refresh-token race wiped shared credentials",
+    "Fixed `DISABLE_TELEMETRY` / `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` not suppressing usage metrics telemetry for API and enterprise users",
+    "Claude Code and installer now use `https://downloads.claude.ai/claude-code-releases` instead of `https://storage.googleapis.com/claude-code-dist-86c565f3-f756-4",
+    "Fixed feedback surveys appearing back-to-back after dismissing one",
+    "Added `\u25cf N running` indicator in `/agents` next to agent types with live subagent instances",
+    "Fixed Homebrew install update prompts to use the cask's release channel (`claude-code` \u2192 stable, `claude-code@latest` \u2192 latest)",
+    "Fixed Windows version cleanup not protecting the active version's rollback copy",
+    "`/buddy` is here for April 1st \u2014 hatch a small creature that watches you code",
+    "Fixed `/plugin` uninstall dialog: pressing `n` now correctly uninstalls the plugin while preserving its data directory"
+  ]
+}
