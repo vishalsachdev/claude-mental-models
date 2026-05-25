@@ -62,11 +62,16 @@ def parse_changelog(markdown: str) -> list[dict]:
 def clone_or_update_repo(dest: Path) -> Path:
     """Clone anthropics/claude-code (full history) or fetch if already present.
 
-    Full history (no --depth) is required: a shallow clone clamps the oldest
-    versions' git dates to the clone horizon (fixes P8).
+    Full history (no --depth) is required: a shallow clone would clamp the
+    oldest versions' git dates to the clone horizon. If `dest` was previously
+    created with `--depth N`, `git fetch --all` does NOT convert it to full
+    history — we detect the shallow marker and unshallow explicitly.
     """
     dest = Path(dest)
     if (dest / ".git").exists():
+        if (dest / ".git" / "shallow").exists():
+            subprocess.run(["git", "-C", str(dest), "fetch", "--unshallow"],
+                           check=True)
         subprocess.run(["git", "-C", str(dest), "fetch", "--all"], check=True)
     else:
         subprocess.run(["git", "clone", REPO_URL, str(dest)], check=True)

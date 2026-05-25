@@ -44,9 +44,10 @@ Treat the deliverable as two layers with very different reliability:
 
 ## 2. The pipeline, stage by stage
 
-1. **Corpus.** Claude Code's `CHANGELOG.md` — 2,996 entries, each dated by the
-   git commit that introduced its version heading. Plus 33 Anthropic blog
-   posts scraped from anthropic.com (all 33 dated — see §3.4 on A1).
+1. **Corpus.** Claude Code's `CHANGELOG.md` — 3,057 entries across 296 releases,
+   each dated by the git commit that introduced its version heading. Plus 33
+   Anthropic blog posts scraped from anthropic.com (all 33 dated — see §3.4
+   on A1).
 2. **Change-type tagging.** Each changelog entry labelled add / change / fix /
    deprecate / remove by word-boundary keyword rules.
 3. **Blog relevance & join.** An LLM tags each blog for Claude Code relevance;

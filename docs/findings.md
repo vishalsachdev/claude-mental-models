@@ -3,7 +3,7 @@
 *We use "mental models" as an organizing lens for these competencies — it is a
 framing, not a measured claim about individual developers.*
 
-*Analysis of 2,996 changelog entries and 32 blog posts spanning 2025-04-02 to 2026-05-19.*
+*Analysis of 3,057 changelog entries and 33 blog posts spanning 2025-04-02 to 2026-05-23.*
 
 ---
 
@@ -14,20 +14,22 @@ Code's surface increasingly demand of its users over time, and when did each dem
 become visible in the release record? (We organize those competencies under a
 "mental models" lens — see the note above.)
 
-The primary corpus is the Claude Code CHANGELOG (2,996 entries across 292 releases),
-supplemented by 32 Anthropic blog posts scraped as a proxy for what Anthropic chose to
-explain publicly. The blog corpus is thin — more on that below. Together they give a
-developer-facing view of Claude Code's evolution over roughly 13 months.
+The primary corpus is the Claude Code CHANGELOG (3,057 entries across 296 releases),
+supplemented by 33 Anthropic blog posts scraped as a proxy for what Anthropic chose to
+explain publicly. The blog corpus is thin in volume — more on that below — but the
+headless-render fix (rebuild §3.4) recovered a date for every post, so all 33 are now
+join-eligible. Together they give a developer-facing view of Claude Code's evolution
+over roughly 14 months.
 
 ---
 
 ## Pace
 
-2,996 changelog entries span 14 calendar months (April 2025 – May 2026), with monthly
+3,057 changelog entries span 14 calendar months (April 2025 – May 2026), with monthly
 entry counts ranging from **32 to 669**. The low end reflects early months with sparse
-history at the depth-1000 clone boundary; the high end reflects a brief acceleration
-period before cadence settled. This is a fast-moving product: releases ship continuously,
-not on a monthly cycle.
+upstream history (the initial `CHANGELOG.md` commit on 2025-04-02 seeded 17 versions in
+one batch — see rebuild §A1); the high end reflects an acceleration period in early
+2026. This is a fast-moving product: releases ship continuously, not on a monthly cycle.
 
 Change-type breakdown:
 
@@ -123,50 +125,50 @@ as Explicit, Reviewable Artifacts" (41). These are conceptually important but na
 targeted in the changelog; they appear in blog posts and conceptual documentation rather
 than in high-frequency fix cycles.
 
-**1,013 of 3,018 entries (33.6%)** were unassigned to any theme. The vast majority are
-pure bug fixes with no conceptual shift — they did not require the user to update any
-competency or expectation, just trust that a known behavior was corrected.
+**47 of 3,079 entries (1.5%)** were unassigned to any theme and now carry an explicit
+`Maintenance / no conceptual shift` label. The vast majority are pure bug fixes with no
+conceptual shift — they did not require the user to update any competency or
+expectation, just trust that a known behavior was corrected. (This is down from v1's
+33.6% — the methodological rebuild's anchor theme set covers the corpus much more
+fully; see methodology.md §3 for how.)
 
 ---
 
 ## Methodology Notes and Limitations
 
-**Redesign mid-project.** The original spec called for per-item open-coding followed by
-axial coding — a qualitative grounded-theory approach adapted for LLM execution. On real
-data, this produced approximately 17,149 unique non-recurring codes: the LLM generated
-novel labels for every entry rather than converging. The design was revised (with project
-owner approval) to two-stage theme discovery: (1) embed all entries, cluster with HDBSCAN,
-and use cluster centroids as theme seeds; (2) use a fixed theme vocabulary for batched
-assignment. This produced stable, reproducible results.
+The full methodology — including the v1 redesign, the v2 triangulated rebuild, and the
+honest measurement of what the rebuild did *not* fix — lives in `docs/methodology.md`.
+Headline limitations:
 
-**Two-pass stability audit dropped.** The original plan included a second coding pass for
-inter-rater reliability. Free-text codes never matched between passes (measured Cohen's
-kappa: 0.003), making the metric meaningless for this LLM-executed workflow. The audit
-was dropped in favor of a simpler verification: manual inspection of random samples from
-each theme.
+**Blog corpus is thin in volume.** 33 posts, all dated after the headless-render fix,
+22 Claude Code-relevant. The narration analysis is directionally useful but not
+statistically robust.
 
-**33.6% unassigned.** Bug-fix entries without conceptual content were left unassigned
-rather than force-fit into themes. This is by design: a theme should represent a mental
-model the user must hold, not merely a code change that occurred.
+**The 2025-04-02 corpus floor is genuine batched upstream seeding** (not a shallow-clone
+artifact, as v1 incorrectly framed it). Whatever existed before that commit was never
+in public git history. Several themes trace `first_seen_date` to 2025-04-02 because that
+is when the upstream `CHANGELOG.md` itself was committed.
 
-**Blog corpus is thin.** 32 posts, 14 undated, 22 Claude Code-relevant. The narration
-analysis is directionally useful but not statistically robust.
-
-**`first_seen_date` is bounded by the git clone depth.** The repository was cloned with
-`--depth 1000`. Seven of ten themes trace to the earliest visible date (2025-04-02),
-which is the boundary of that clone — not evidence of origin.
+**Themes still smear across embedding clusters.** Median cluster↔theme coherence is
+**0.30**; only 2 of 13 themes exceed 0.5. The rebuild made this measurable
+(`coherence.parquet`, the heatmap in the notebook) rather than eliminating it. Read
+`high` themes with `coherence_score > 0.5` (Permissions, MCP) with more confidence than
+abstract cross-cutting themes (Configuration as Policy, UI Navigation). See
+methodology.md §3.3 for the mechanism.
 
 ---
 
 ## Where the Methods Could Disagree
 
-The embedding pipeline produced **36 HDBSCAN clusters** (plus 691 noise points) from
-3,018 entries. The thematic coding produced **10 LLM themes** assigned to 2,005 entries.
-These are different granularities and they cut the data differently.
+The embedding pipeline produced **43 HDBSCAN clusters** from 3,079 entries. The
+triangulated theme layer produced **13 anchor themes** (7 high-confidence / 3
+provisional / 3 bottom-up-only) assigned to 3,032 entries.
 
 The cluster explorer in `notebooks/analysis.py` lets a reader compare them visually:
 color entries by `cluster_label` to see the embedding-space topology, then re-color by
-`themes` to see where the LLM theme boundaries land. Areas of disagreement — a single
-embedding cluster that spans two LLM themes, or a single LLM theme scattered across
-multiple clusters — are the most analytically interesting regions and the most likely
-candidates for refinement in a follow-on pass.
+`themes` to see where the theme boundaries land. The new cluster×theme heatmap surfaces
+the disagreement directly — themes whose entries spread broadly across clusters
+(visible as a horizontal smear in the heatmap) are precisely the abstract cross-cutting
+themes flagged as low-coherence. Themes whose entries concentrate in one or two clusters
+(visible as a tight column) are the surface-distinct ones whose existence the data most
+clearly supports.
