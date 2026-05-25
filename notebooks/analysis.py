@@ -13,14 +13,18 @@ def _():
 
 @app.cell
 def _(mo, pl):
+    import json
     changelog = pl.read_parquet("data/processed/changelog.parquet")
     blogs = pl.read_parquet("data/processed/blogs.parquet")
     joins = pl.read_parquet("data/processed/joins.parquet")
     embeddings = pl.read_parquet("data/processed/embeddings.parquet")
     themes = pl.read_parquet("data/processed/themes.parquet")
     codes = pl.read_parquet("data/processed/codes.parquet")
+    coherence = pl.read_parquet("data/processed/coherence.parquet")
+    residual = json.load(open("data/processed/residual_analysis.json"))
     mo.md("# Claude Code Mental Models")
-    return changelog, blogs, joins, embeddings, themes, codes
+    return (changelog, blogs, joins, embeddings, themes, codes,
+            coherence, residual)
 
 
 @app.cell
@@ -84,12 +88,14 @@ def _(mo):
 
 
 @app.cell
-def _(mo, embeddings, codes):
-    clusters = (
-        embeddings.join(codes.select("entry_id", "themes"), on="entry_id", how="left")
-        .select("entry_id", "source", "version", "date", "text",
-                "cluster_label", "themes", "umap_x", "umap_y")
-    )
+def _(mo, pl, embeddings, codes):
+    mini = pl.read_parquet("data/processed/mini_themes.parquet")
+    clusters = (embeddings
+                .join(codes.select("entry_id", "themes"), on="entry_id", how="left")
+                .join(mini.select("cluster_label", "mini_theme"),
+                      on="cluster_label", how="left")
+                .select("entry_id", "text", "cluster_label", "mini_theme",
+                        "themes", "umap_x", "umap_y"))
     mo.ui.data_explorer(clusters)
 
 
@@ -119,6 +125,45 @@ def _(mo):
         "Which features were later deprecated or removed?",
         "How did context management change over the year?",
     ])
+
+
+@app.cell
+def _(mo, pl, alt, codes, embeddings):
+    cl = dict(zip(embeddings["entry_id"].to_list(),
+                  embeddings["cluster_label"].to_list()))
+    xt = (codes.explode("themes").drop_nulls("themes")
+          .with_columns(pl.col("entry_id")
+                        .map_elements(lambda e: cl.get(e, -1),
+                                      return_dtype=pl.Int64).alias("cluster"))
+          .filter(pl.col("cluster") != -1)
+          .group_by("themes", "cluster").len())
+    heat = alt.Chart(xt.to_pandas()).mark_rect().encode(
+        x="cluster:O", y="themes:N",
+        color=alt.Color("len:Q", title="entries"),
+    ).properties(title="Cluster x theme cross-tab", width=700)
+    mo.ui.altair_chart(heat)
+
+
+@app.cell
+def _(mo, themes, coherence):
+    table = (themes.join(coherence, left_on="name", right_on="theme", how="left")
+             .select("name", "confidence_tier", "evidence_tier", "entry_count",
+                     "coherence_score", "corroborated_top_down",
+                     "corroborated_independent", "first_seen_date"))
+    mo.ui.table(table)
+
+
+@app.cell
+def _(mo, residual):
+    mo.md(f"""
+## Unassigned residual
+
+**{residual['residual_count']} entries ({residual['residual_fraction']:.0%})**
+fall under *Maintenance / no conceptual shift* — bug fixes and upkeep that
+demanded no new user competency. By source: {residual['by_source']}.
+
+Examples:
+""" + "\n".join(f"- {x}" for x in residual["examples"]))
 
 
 if __name__ == "__main__":
