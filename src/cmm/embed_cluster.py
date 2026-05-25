@@ -7,7 +7,7 @@ import polars as pl
 import umap
 from sentence_transformers import SentenceTransformer
 
-EMBED_MODEL = "all-MiniLM-L6-v2"  # pinned local model
+EMBED_MODEL = "all-mpnet-base-v2"  # higher-capacity than MiniLM (fixes P7)
 
 
 def build(changelog: Path = Path("data/processed/changelog.parquet"),
@@ -34,9 +34,10 @@ def build(changelog: Path = Path("data/processed/changelog.parquet"),
     model = SentenceTransformer(EMBED_MODEL)
     vectors = model.encode(df["text"].to_list(), show_progress_bar=True)
 
-    # HDBSCAN clusters poorly in 384-d; cluster a UMAP-reduced space instead.
-    reduced = umap.UMAP(n_components=5, random_state=42).fit_transform(vectors)
-    labels = hdbscan.HDBSCAN(min_cluster_size=20, min_samples=5).fit_predict(reduced)
+    # HDBSCAN clusters poorly in 768-d; reduce first — but less aggressively
+    # than v1's 5-D, which risked lexical (not semantic) collisions.
+    reduced = umap.UMAP(n_components=12, random_state=42).fit_transform(vectors)
+    labels = hdbscan.HDBSCAN(min_cluster_size=15, min_samples=5).fit_predict(reduced)
     # Separate 2-d projection for plotting in the notebook.
     coords = umap.UMAP(n_components=2, random_state=42).fit_transform(vectors)
 
