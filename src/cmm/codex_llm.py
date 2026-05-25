@@ -56,6 +56,10 @@ def complete_json(prompt: str, system: str = "", max_tokens: int = 2000):
                     ["codex", "exec", "--sandbox", "read-only",
                      "--model", MODEL, full],
                     capture_output=True, text=True, timeout=_TIMEOUT,
+                    # stdin=DEVNULL: codex exec reads stdin even with a
+                    # positional prompt; if the parent has a TTY or open pipe,
+                    # codex blocks waiting for additional input forever.
+                    stdin=subprocess.DEVNULL,
                 )
                 if proc.returncode != 0:
                     raise RuntimeError(f"rc={proc.returncode}: {proc.stderr.strip()}")
