@@ -1,4 +1,7 @@
-# Findings: Claude Code Mental Models
+# Findings: Competencies Demanded by Claude Code's Surface
+
+*We use "mental models" as an organizing lens for these competencies — it is a
+framing, not a measured claim about individual developers.*
 
 *Analysis of 2,996 changelog entries and 32 blog posts spanning 2025-04-02 to 2026-05-19.*
 
@@ -6,8 +9,10 @@
 
 ## Overview
 
-This project asks a practical question: what mental models does a power user have to
-develop to work effectively with Claude Code, and when did each model become necessary?
+This project asks a practical question: what competencies and expectations did Claude
+Code's surface increasingly demand of its users over time, and when did each demand
+become visible in the release record? (We organize those competencies under a
+"mental models" lens — see the note above.)
 
 The primary corpus is the Claude Code CHANGELOG (2,996 entries across 292 releases),
 supplemented by 32 Anthropic blog posts scraped as a proxy for what Anthropic chose to
@@ -46,8 +51,9 @@ additions. This is low by software standards, and the signal is deliberate: Clau
 almost never walked features back. The few removals concentrated in specific areas
 (legacy config keys, old permission flags) but the directional motion was always additive.
 
-For a user building mental models, this matters: a model learned in month 1 was almost
-never invalidated — it was extended. The cognitive cost was accumulation, not churn.
+For a user adapting to the tool's surface, this matters: a competency demanded in
+month 1 was almost never invalidated — it was extended. The cognitive cost the tool
+imposed was accumulation, not churn.
 
 ---
 
@@ -66,14 +72,15 @@ The 30.8% narration rate should be read as a floor, not a ceiling. Anthropic lik
 publishes more relevant content on YouTube, in changelogs themselves, and in the
 Claude.ai in-app notes — none of which were collected. What this corpus does show is
 that high-velocity changelog changes consistently outpace the documentation and
-explanation that would help users build accurate mental models.
+explanation that would help users keep up with what the tool now expects of them.
 
 ---
 
-## The Mental-Model Timeline
+## The Competency Timeline (mental-model lens)
 
-Thematic coding identified **10 recurring mental models** from the corpus. Entry counts
-reflect how persistently each model recurs across the changelog and blogs:
+Thematic coding identified **10 recurring competency themes** the tool's surface
+demanded — organized here under a mental-model lens. Entry counts reflect how
+persistently each theme recurs across the changelog and blogs:
 
 | Theme | Entry Count | First Seen |
 |-------|-------------|------------|
@@ -104,7 +111,7 @@ The three themes with later first-seen dates are more interpretable:
   making it the most frequently surfaced theme.
 - **Hooks as Automation Seams** (2025-06-30) — the hook system (pre/post-tool, stop
   hooks) appears to have been introduced or substantially expanded in mid-2025, making
-  this the most clearly "late-arriving" mental model.
+  this the most clearly "late-arriving" competency the surface began demanding.
 
 The **most entry-heavy theme** is "The Harness Is Configurable" (433 entries), followed
 by "Sessions as Resumable Artifacts" (342) and "Skills and Plugins as the Extension
@@ -117,8 +124,8 @@ targeted in the changelog; they appear in blog posts and conceptual documentatio
 than in high-frequency fix cycles.
 
 **1,013 of 3,018 entries (33.6%)** were unassigned to any theme. The vast majority are
-pure bug fixes with no conceptual shift — they do not require the user to update any
-mental model, just trust that a known behavior was corrected.
+pure bug fixes with no conceptual shift — they did not require the user to update any
+competency or expectation, just trust that a known behavior was corrected.
 
 ---
 

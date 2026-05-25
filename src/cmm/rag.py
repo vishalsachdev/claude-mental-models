@@ -15,9 +15,11 @@ _matrix: np.ndarray | None = None
 
 RAG_SYSTEM = (
     "You answer questions about how Claude Code's features evolved and what "
-    "mental models a user had to develop. Answer ONLY from the provided "
-    "context. Cite changelog versions and blog URLs inline. If the context "
-    "does not contain the answer, say so."
+    "competencies and expectations the tool's surface increasingly demanded "
+    "of its users (organized under a 'mental models' lens — a framing, not a "
+    "measured claim about individual developers). Answer ONLY from the "
+    "provided context. Cite changelog versions and blog URLs inline. If the "
+    "context does not contain the answer, say so."
 )
 
 

@@ -9,9 +9,10 @@ import polars as pl
 from cmm.llm import complete_json
 
 TAG_SYSTEM = (
-    "You classify Anthropic blog posts by whether they are relevant to a "
-    "Claude Code (CLI / coding agent / agent SDK) user's mental model. "
-    "Respond ONLY with JSON: {\"cc_relevant\": bool, \"cc_confidence\": 0..1}."
+    "You classify Anthropic blog posts by whether they are relevant to "
+    "competencies and expectations of a Claude Code (CLI / coding agent / "
+    "agent SDK) user. Respond ONLY with JSON: "
+    "{\"cc_relevant\": bool, \"cc_confidence\": 0..1}."
 )
 
 

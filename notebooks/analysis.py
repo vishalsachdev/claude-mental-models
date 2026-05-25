@@ -22,7 +22,11 @@ def _(mo, pl):
     codes = pl.read_parquet("data/processed/codes.parquet")
     coherence = pl.read_parquet("data/processed/coherence.parquet")
     residual = json.load(open("data/processed/residual_analysis.json"))
-    mo.md("# Claude Code Mental Models")
+    mo.md(
+        "# Claude Code: Competencies Demanded by the Tool's Surface\n\n"
+        "*We use 'mental models' as an organizing lens for these competencies — "
+        "it is a framing, not a measured claim about individual developers.*"
+    )
     return (changelog, blogs, joins, embeddings, themes, codes,
             coherence, residual)
 
@@ -77,8 +81,9 @@ def _(mo, pl, alt, codes):
     chart_emerge = alt.Chart(theme_growth.to_pandas()).mark_area().encode(
         x="month:T",
         y=alt.Y("weight:Q", stack="center", title="cumulative coded entries"),
-        color=alt.Color("themes:N", title="mental model"),
-    ).properties(title="Mental-model emergence and growth", width=700)
+        color=alt.Color("themes:N", title="competency theme"),
+    ).properties(title="Theme emergence and growth (competencies demanded over time)",
+                 width=700)
     mo.ui.altair_chart(chart_emerge)
 
 
@@ -101,7 +106,7 @@ def _(mo, pl, embeddings, codes):
 
 @app.cell
 def _(mo):
-    mo.md("## Mental models reference")
+    mo.md("## Competency themes reference (mental-model lens)")
 
 
 @app.cell
@@ -121,7 +126,7 @@ def _(mo):
 def _(mo):
     from cmm.rag import chat_model
     mo.ui.chat(chat_model, prompts=[
-        "What mental model shift did subagents require?",
+        "What competency did subagents demand of users?",
         "Which features were later deprecated or removed?",
         "How did context management change over the year?",
     ])

@@ -1,11 +1,12 @@
 # src/cmm/thematic_coding.py
-"""Thematic coding: discover mental-model themes, then assign every entry.
+"""Thematic coding: discover competency themes, then assign every entry.
 
 Two-stage design (replaces per-item free-text open coding, which produced
 ~17k unique non-recurring codes that could not be axially aggregated):
 
 1. discover_themes  -- one LLM call over a stratified timeline sample yields
-   6-10 named mental models.
+   6-10 named competency themes (organized here under a "mental models" lens,
+   which is a framing — not a measured claim about individual developers).
 2. assign_themes    -- every entry is assigned to those themes in parallel
    batches, giving a direct entry->theme mapping.
 """
@@ -18,19 +19,19 @@ import polars as pl
 from cmm.llm import complete_json
 
 DISCOVER_SYSTEM = (
-    "You are a qualitative researcher studying how a developer's mental model "
-    "of using Claude Code (the CLI coding agent) had to evolve over a year of "
-    "releases. From the sample of release notes and blog excerpts, identify "
-    "6-10 named 'mental models' -- conceptual shifts a user had to internalize "
-    "to use the tool well (examples of the KIND of thing: 'context is a "
-    "managed resource', 'delegation to subagents', 'the harness is "
-    "configurable'). Return JSON {\"themes\": [{\"name\": ..., "
-    "\"description\": ...}]}. Names are short; each description is one "
-    "sentence naming the shift in thinking."
+    "You are a qualitative researcher studying what competencies and "
+    "expectations using Claude Code (the CLI coding agent) increasingly "
+    "demanded of a developer over a year of releases. From the sample of "
+    "release notes and blog excerpts, identify 6-10 named themes -- competencies "
+    "or expectations the tool's surface required users to develop (examples of "
+    "the KIND of thing: 'context is a managed resource', 'delegation to "
+    "subagents', 'the harness is configurable'). Return JSON "
+    "{\"themes\": [{\"name\": ..., \"description\": ...}]}. Names are short; "
+    "each description is one sentence naming the competency or expectation."
 )
 
 ASSIGN_SYSTEM = (
-    "You assign Claude Code release items to mental-model themes. You are "
+    "You assign Claude Code release items to competency themes. You are "
     "given the theme list and a batch of items. For each item return the "
     "theme name(s) it reflects -- usually 1, at most 2, or [] if none apply. "
     "Use theme names exactly as given. Return JSON {\"assignments\": "
