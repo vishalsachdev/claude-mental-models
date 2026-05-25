@@ -48,3 +48,15 @@ def test_label_unassigned_labels_empty_theme_lists():
     out = label_unassigned(codes)
     assert out.filter(_pl.col("entry_id") == "a")["themes"].to_list()[0] == ["T1"]
     assert out.filter(_pl.col("entry_id") == "b")["themes"].to_list()[0] == [MAINTENANCE]
+
+
+from cmm.triangulate import evidence_tier
+
+
+def test_evidence_tier_minor_below_threshold():
+    # entry_count below 1.5% of corpus -> minor
+    assert evidence_tier(entry_count=20, corpus_size=3000) == "minor"
+
+
+def test_evidence_tier_core_above_threshold():
+    assert evidence_tier(entry_count=200, corpus_size=3000) == "core"

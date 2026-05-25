@@ -161,3 +161,92 @@ def regenerate_descriptions(triangulated: pl.DataFrame, codes: pl.DataFrame,
         rows.append({**t, "description": new_desc,
                      "description_flags": json.dumps(flags)})
     return pl.DataFrame(rows, schema_overrides={"source_clusters": pl.List(pl.Int64)})
+
+
+def evidence_tier(entry_count: int, corpus_size: int,
+                  min_share: float = 0.015) -> str:
+    """`minor` if the theme covers < min_share of the corpus, else `core`."""
+    if corpus_size == 0:
+        return "minor"
+    return "minor" if entry_count / corpus_size < min_share else "core"
+
+
+def finalize_themes(b5_themes: pl.DataFrame, codes: pl.DataFrame,
+                    embeddings: pl.DataFrame) -> pl.DataFrame:
+    """B7: enrich + tier the triangulated themes into the final themes.parquet.
+
+    `codes` here is post-B6 (Maintenance label applied). The Maintenance label
+    is NOT a theme row — it is filtered out of the enrichment join.
+    """
+    text_by_id = dict(zip(embeddings["entry_id"].to_list(),
+                          embeddings["text"].to_list()))
+    date_by_id = dict(zip(embeddings["entry_id"].to_list(),
+                          embeddings["date"].to_list()))
+    exploded = codes.explode("themes").drop_nulls("themes")
+    corpus_size = codes.height
+    rows = []
+    for t in b5_themes.iter_rows(named=True):
+        mem = exploded.filter(pl.col("themes") == t["name"])
+        ids = mem["entry_id"].to_list()
+        dates = [date_by_id.get(e) for e in ids if date_by_id.get(e)]
+        blog_urls = sorted(e for e in ids if str(e).startswith("http"))
+        rows.append({
+            "name": t["name"],
+            "description": t["description"],
+            "description_flags": t["description_flags"],
+            "entry_count": mem.height,
+            "first_seen_date": min(dates) if dates else None,
+            "supporting_blog_urls": blog_urls,
+            "example_entries": [text_by_id.get(e, "")[:160] for e in ids[:3]],
+            "corroborated_top_down": t["corroborated_top_down"],
+            "corroborated_independent": t["corroborated_independent"],
+            "confidence_tier": t["confidence_tier"],
+            "corroboration_notes": t["corroboration_notes"],
+            "source_clusters": t["source_clusters"],
+            "evidence_tier": evidence_tier(mem.height, corpus_size),
+        })
+    return pl.DataFrame(rows, schema_overrides={
+        "supporting_blog_urls": pl.List(pl.Utf8),
+        "source_clusters": pl.List(pl.Int64),
+    })
+
+
+def run(embeddings: Path = Path("data/processed/embeddings.parquet")) -> None:
+    """B4-B7 end-to-end. Assumes mini_themes, anchor_themes, derivations exist.
+
+    Run order upstream: theme_derivations.run_b1 -> run_b15 -> run_derivations.
+    """
+    emb = pl.read_parquet(embeddings)
+    anchor = pl.read_parquet("data/processed/anchor_themes.parquet")
+    deriv = pl.read_parquet("data/processed/derivations.parquet")
+
+    tri = triangulate(anchor, deriv)                       # B4
+    codes = assign_to_anchor(anchor, emb)                  # B4
+    b5 = regenerate_descriptions(tri, codes, emb)          # B5
+
+    residual = residual_analysis(codes, emb)               # B6
+    json.dump(residual, open("data/processed/residual_analysis.json", "w"),
+              indent=2)
+    codes = label_unassigned(codes)                        # B6
+
+    themes = finalize_themes(b5, codes, emb)               # B7
+    codes.write_parquet("data/processed/codes.parquet")
+    themes.write_parquet("data/processed/themes.parquet")
+
+    audit = {
+        "n_themes": themes.height,
+        "n_entries": codes.height,
+        "residual_count": residual["residual_count"],
+        "residual_fraction": residual["residual_fraction"],
+        "confidence_tiers": dict(themes.group_by("confidence_tier").len()
+                                 .iter_rows()),
+        "evidence_tiers": dict(themes.group_by("evidence_tier").len()
+                               .iter_rows()),
+    }
+    json.dump(audit, open("data/processed/coding_audit.json", "w"), indent=2)
+    print(f"Final: {themes.height} themes, "
+          f"{residual['residual_count']} residual ({residual['residual_fraction']})")
+
+
+if __name__ == "__main__":
+    run()
