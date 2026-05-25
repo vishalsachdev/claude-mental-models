@@ -68,5 +68,62 @@ def run_b1(embeddings: Path = Path("data/processed/embeddings.parquet"),
     print(f"B1: {mini.height} mini-themes from clusters")
 
 
+CONSOLIDATE_SYSTEM = (
+    "You are a qualitative researcher. You are given a list of fine-grained "
+    "mini-themes (each tied to an embedding cluster id). Group them into "
+    "10-15 consolidated themes -- coherent user competencies/expectations. "
+    "Every cluster id must appear in exactly one theme's source_clusters. "
+    'Return JSON {"themes": [{"name": "short", "description": "one sentence", '
+    '"source_clusters": [int, ...]}]}.'
+)
+
+
+def validate_consolidation(consolidated: list[dict], mini: pl.DataFrame) -> None:
+    """Raise unless every mini-theme cluster is covered exactly once."""
+    all_clusters = set(mini["cluster_label"].to_list())
+    seen: list[int] = []
+    for t in consolidated:
+        seen += t["source_clusters"]
+    covered = set(seen)
+    if covered != all_clusters:
+        missing = sorted(all_clusters - covered)
+        extra = sorted(covered - all_clusters)
+        raise ValueError(f"cluster cover mismatch: missing={missing} extra={extra}")
+    if len(seen) != len(covered):
+        raise ValueError(f"cluster assigned to >1 theme: {sorted(seen)}")
+
+
+def consolidate_mini_themes(mini: pl.DataFrame) -> pl.DataFrame:
+    """B1.5: group mini-themes into the canonical 10-15 anchor themes.
+
+    Returns columns: name, description, source_clusters (list[int]).
+    """
+    listing = "\n".join(
+        f"- cluster {r['cluster_label']}: {r['mini_theme']} — {r['description']}"
+        for r in mini.iter_rows(named=True))
+    r = claude_json(f"Mini-themes:\n{listing}",
+                    system=CONSOLIDATE_SYSTEM, max_tokens=3000)
+    consolidated = r["themes"]
+    validate_consolidation(consolidated, mini)
+    return pl.DataFrame(consolidated,
+                        schema_overrides={"source_clusters": pl.List(pl.Int64)})
+
+
+def run_b15(mini_path: Path = Path("data/processed/mini_themes.parquet"),
+            out: Path = Path("data/processed/derivations.parquet")) -> None:
+    """Run B1.5 and write the bottom_up rows of derivations.parquet."""
+    mini = pl.read_parquet(mini_path)
+    anchor = consolidate_mini_themes(mini)
+    rows = anchor.select(
+        pl.lit("bottom_up").alias("derivation"),
+        pl.col("name").alias("theme_name"),
+        pl.col("description"),
+    )
+    rows.write_parquet(out)
+    # source_clusters is needed later by C1; keep it in a sidecar parquet.
+    anchor.write_parquet(Path("data/processed/anchor_themes.parquet"))
+    print(f"B1.5: consolidated to {anchor.height} anchor themes")
+
+
 if __name__ == "__main__":
     run_b1()
