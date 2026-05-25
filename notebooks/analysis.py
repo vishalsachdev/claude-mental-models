@@ -22,22 +22,28 @@ def _(pl):
     themes = pl.read_parquet("data/processed/themes.parquet")
     codes = pl.read_parquet("data/processed/codes.parquet")
     coherence = pl.read_parquet("data/processed/coherence.parquet")
+    persona_relevance = pl.read_parquet("data/processed/persona_relevance.parquet")
     residual = json.load(open("data/processed/residual_analysis.json"))
     return (changelog, blogs, joins, embeddings, themes, codes,
-            coherence, residual)
+            coherence, persona_relevance, residual)
 
 
 @app.cell
 def _(mo):
     mo.md(
 """
-# Claude Code: Competencies Demanded by the Tool's Surface
+# Claude Code: How the Tool Guides Users to Build New Mental Models
 
 *A study of how Claude Code's user-facing surface evolved across its first ~14
-months of releases, and what those changes implicitly demanded that its users
-learn. We use **"mental models"** as an organizing lens for those competencies
-— it is a framing, not a measured claim about what any individual developer
-believed.*
+months of releases — and what mental models **a user encountering that surface
+would have had to build** to use the tool well. The deliverable is
+**persona-aware**: pick who you are below and the analysis re-orients around
+the mental models the tool was teaching **you**.*
+
+*The claim is not "developers held mental model X at time T" — we cannot
+observe interior states. The claim is: **the tool's evolving surface
+increasingly invited users to think about Y, Z, … in particular ways.** That
+invitation is what the release record makes visible.*
 
 ---
 
@@ -113,6 +119,58 @@ Each section has a short note on **how to read it** and **what to be suspicious
 of**.
 """
     )
+
+
+@app.cell
+def _(mo):
+    persona = mo.ui.radio(
+        options={
+            "Analyst — data person using Claude via Skills / notebooks": "analyst",
+            "PM running ops — orchestrating agents, schedules, Skills": "pm_ops",
+            "Researcher — long-form thinking partner across sessions": "researcher",
+            "Vibe coder — high-level intent in, working code out": "vibe_coder",
+        },
+        value="Vibe coder — high-level intent in, working code out",
+        label="**Who are you?** Pick a persona — the analysis below re-orients around the mental models the tool was teaching *you*.",
+    )
+    persona
+    return (persona,)
+
+
+@app.cell
+def _(mo, pl, persona, persona_relevance, themes):
+    selected = persona.value or "vibe_coder"
+    pr = (persona_relevance.filter(pl.col("persona") == selected)
+          .join(themes.select("name", "entry_count", "confidence_tier"),
+                left_on="theme", right_on="name", how="left"))
+    rank = {"high": 0, "medium": 1, "low": 2}
+    pr = pr.with_columns(pl.col("relevance").replace_strict(rank).alias("_r")).sort("_r", "entry_count", descending=[False, True])
+
+    persona_labels = {
+        "analyst": "If you are a **data analyst**",
+        "pm_ops": "If you are a **PM running ops**",
+        "researcher": "If you are a **researcher**",
+        "vibe_coder": "If you are a **vibe coder**",
+    }
+    high = pr.filter(pl.col("relevance") == "high")
+    medium = pr.filter(pl.col("relevance") == "medium")
+    low_count = pr.filter(pl.col("relevance") == "low").height
+
+    def fmt(row):
+        return (f"- **{row['theme']}** "
+                f"<sub>({row['entry_count']} entries · {row['confidence_tier']})</sub>  \n"
+                f"  {row['mental_model']}")
+
+    md = [
+        f"## Your mental-model map\n",
+        f"{persona_labels[selected]}, the tool was actively teaching you these mental models:\n",
+        f"### Core ({high.height})  — you cannot use Claude Code well without these\n",
+        *[fmt(r) for r in high.iter_rows(named=True)],
+        f"\n### Adjacent ({medium.height}) — you will brush against these\n",
+        *[fmt(r) for r in medium.iter_rows(named=True)],
+        f"\n*({low_count} additional themes are mostly developer / CLI concerns this persona can ignore — they are still in the full table below.)*",
+    ]
+    mo.md("\n".join(md))
 
 
 @app.cell
@@ -359,11 +417,18 @@ discovery underweights.
 
 
 @app.cell
-def _(mo, themes, coherence):
+def _(mo, pl, themes, coherence, persona, persona_relevance):
+    selected_p = persona.value or "vibe_coder"
+    pr_sel = (persona_relevance.filter(pl.col("persona") == selected_p)
+              .select("theme", "relevance", "mental_model"))
+    rank_map = {"high": 0, "medium": 1, "low": 2}
     table = (themes.join(coherence, left_on="name", right_on="theme", how="left")
-             .select("name", "confidence_tier", "evidence_tier", "entry_count",
-                     "coherence_score", "corroborated_top_down",
-                     "corroborated_independent", "first_seen_date"))
+             .join(pr_sel, left_on="name", right_on="theme", how="left")
+             .with_columns(pl.col("relevance").replace_strict(rank_map).alias("_r"))
+             .sort("_r", "entry_count", descending=[False, True])
+             .select("name", "relevance", "mental_model",
+                     "confidence_tier", "coherence_score", "entry_count",
+                     "evidence_tier", "first_seen_date"))
     mo.ui.table(table)
 
 
