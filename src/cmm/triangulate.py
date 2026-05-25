@@ -10,6 +10,7 @@ from pathlib import Path
 import polars as pl
 
 from cmm.codex_llm import complete_json as codex_json
+from cmm.llm import complete_json as claude_json
 from cmm.thematic_coding import assign_themes
 
 CORROBORATE_SYSTEM = (
@@ -74,3 +75,56 @@ def assign_to_anchor(anchor: pl.DataFrame, embeddings: pl.DataFrame) -> pl.DataF
     items = embeddings.select("entry_id", "text", "source", "date")
     theme_list = anchor.select(pl.col("name"), pl.col("description"))
     return assign_themes(items, theme_list)
+
+
+DESCRIBE_SYSTEM = (
+    "You are a qualitative researcher. Given a theme name and a sample of the "
+    "release items ACTUALLY assigned to it, write a one-sentence description "
+    "of the user competency/expectation the theme captures. Use only what the "
+    'items evidence. Return JSON {"description": "one sentence"}.'
+)
+
+_STOP = {"the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with",
+         "users", "user", "learned", "adopted", "had", "this", "that", "as",
+         "is", "are", "was", "were", "be", "by", "from", "their", "they"}
+
+
+def extractive_violations(description: str, member_texts: list[str]) -> list[str]:
+    """Return salient description words that appear in NO member text.
+
+    Salient = length > 4, not a stopword. An empty list means the description
+    is fully grounded in its assigned entries.
+    """
+    corpus = " ".join(member_texts).lower()
+    words = {w.lower().strip(".,`'\"()") for w in description.split()}
+    salient = {w for w in words if len(w) > 4 and w not in _STOP}
+    return sorted(w for w in salient if w not in corpus)
+
+
+def regenerate_descriptions(triangulated: pl.DataFrame, codes: pl.DataFrame,
+                            embeddings: pl.DataFrame) -> pl.DataFrame:
+    """B5: rewrite each theme description from its assigned entries.
+
+    Adds `description` (regenerated) and `description_flags` (json list of
+    ungrounded words, empty if clean).
+    """
+    text_by_id = dict(zip(embeddings["entry_id"].to_list(),
+                          embeddings["text"].to_list()))
+    exploded = codes.explode("themes").drop_nulls("themes")
+    rows = []
+    for t in triangulated.iter_rows(named=True):
+        members = exploded.filter(pl.col("themes") == t["name"])["entry_id"].to_list()
+        member_texts = [text_by_id.get(e, "") for e in members]
+        if not member_texts:
+            # No assigned entries — keep existing description, flag it.
+            rows.append({**t, "description_flags": json.dumps(["NO_MEMBERS"])})
+            continue
+        sample = member_texts[:25]
+        listing = "\n".join(f"- {x[:200]}" for x in sample)
+        r = claude_json(f"Theme: {t['name']}\nAssigned items:\n{listing}",
+                        system=DESCRIBE_SYSTEM, max_tokens=300)
+        new_desc = r["description"]
+        flags = extractive_violations(new_desc, member_texts)
+        rows.append({**t, "description": new_desc,
+                     "description_flags": json.dumps(flags)})
+    return pl.DataFrame(rows, schema_overrides={"source_clusters": pl.List(pl.Int64)})
