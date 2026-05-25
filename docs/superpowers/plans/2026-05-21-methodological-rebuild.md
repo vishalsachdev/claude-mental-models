@@ -49,6 +49,17 @@ The canonical theme set is the **bottom-up consolidated set** (B1.5). `themes.pa
 - Modify: `src/cmm/collect_changelog.py:96-114` (`collect` — add horizon assertion)
 - Test: `tests/test_collect_changelog.py` (append)
 
+> **Status: COMPLETED 2026-05-24** (commit `1d74881`). Implementation deviated
+> from the literal spec in one defensible way: the assertion signature is
+> `assert_no_horizon_clamp(dates, initial_batch_date=None)`. The optional
+> parameter handles legitimate upstream batched seeding (`anthropics/claude-code`
+> committed its initial `CHANGELOG.md` with 17 version sections in one commit
+> on 2025-04-02), which would otherwise false-positive the strict assertion.
+> Tests pass unchanged (default `None` = strict mode). **Finding:** the repo
+> has ~638 commits, so depth-1000 was already full history; A1 recovered no
+> earlier dates — it ships as a forward-defensive safeguard. Task 14
+> (methodology update) must record this finding.
+
 - [ ] **Step 1: Write the failing test**
 
 Append to `tests/test_collect_changelog.py`:
@@ -1711,6 +1722,13 @@ First read the persisted figures:
 cat data/processed/run_metrics.json
 ```
 This gives `blog_total`, `blog_undated_count`, and `cluster_count`. In `docs/methodology.md`, add a section describing the triangulated design: the three derivations, anchor-on-B1 triangulation, confidence tiers, the coherence output, and the labelled residual. Cite the `run_metrics.json` figures (blog date recovery: `blog_total - blog_undated_count` dated; cluster count). State that B3 used GPT-5.5 via `codex exec`.
+
+**Also record the A1 finding** (from Task 1 status note): the changelog corpus
+floor of 2025-04-02 is genuine batched upstream seeding (`anthropics/claude-code`
+committed its initial `CHANGELOG.md` with 17 versions in one commit), not a
+shallow-clone artifact. A1 still shipped as a forward-defensive safeguard.
+Downgrade or remove any earlier text in `methodology.md` that frames the
+2025-04-02 cluster as a clone-horizon clamp.
 
 - [ ] **Step 5: Verify no stray overreach remains**
 

@@ -25,7 +25,7 @@ without losing the descriptive layer that already works.
 | P5 | 33% of entries assigned to no theme | Council; methodology §4 |
 | P6 | Two tiny themes (27, 41 entries) presented as equal-weight peers | methodology §4 |
 | P7 | `all-MiniLM-L6-v2` + aggressive 5-D UMAP may produce lexical, not semantic, clusters | Gemini R2 |
-| P8 | Corpus gaps: depth-1000 clone clamps dates; blog corpus thin (14/32 undated, JS-SPA) | methodology §4 |
+| P8 | Corpus gaps: blog corpus thin (14/32 undated, JS-SPA statically scraped). *(Note: the changelog clone-horizon concern named in v1 dissolved on contact — the upstream repo has ~638 commits, so depth-1000 was already full history. The 2025-04-02 floor is genuine batched seeding, not a clamp. A1 still ships as a forward-defensive safeguard.)* | methodology §4 |
 | P9 | "Mental models developers held" overreaches what the changelog can evidence | Council #1 |
 
 ## Non-goals
@@ -65,10 +65,14 @@ consumes; Group B rebuilds the theme layer; Group C reconciles and presents.
 
 ### Group A — Corpus & representation
 
-**A1. Full-depth changelog history.** Re-clone `anthropics/claude-code` without
-`--depth 1000` (deep enough that the earliest `## version` heading is captured).
-Re-run `version_dates`. Assert no theme's `first_seen_date` sits exactly on the
-clone horizon. *Fixes P8.*
+**A1. Full-depth changelog history + horizon-clamp safeguard.** Re-clone
+`anthropics/claude-code` without `--depth 1000` and add an
+`assert_no_horizon_clamp` check on the version-date mapping.
+*Investigation during Task 1 found the upstream repo has ~638 commits, so the
+old depth-1000 clone was already fetching full history; the 2025-04-02 floor is
+genuine batched seeding, not a clamp. A1 ships as a defensive safeguard, not a
+data fix. The assertion accepts an optional `initial_batch_date` so legitimate
+upstream batching at file birth does not false-positive.*
 
 **A2. Render the blog corpus.** Replace the static `httpx` scrape with a
 headless-browser render (`claude-in-chrome` / agent-browser) so JS-injected post
