@@ -134,9 +134,11 @@ def _(mo):
 
 @app.cell
 def _(mo, pl, alt, codes, embeddings):
+    from cmm.triangulate import MAINTENANCE_LABEL
     cl = dict(zip(embeddings["entry_id"].to_list(),
                   embeddings["cluster_label"].to_list()))
     xt = (codes.explode("themes").drop_nulls("themes")
+          .filter(pl.col("themes") != MAINTENANCE_LABEL)  # residual is shown separately
           .with_columns(pl.col("entry_id")
                         .map_elements(lambda e: cl.get(e, -1),
                                       return_dtype=pl.Int64).alias("cluster"))
