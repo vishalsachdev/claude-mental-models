@@ -37,3 +37,21 @@ def test_parse_changelog_raises_on_bullet_before_heading():
 def test_parse_changelog_raises_on_no_entries():
     with pytest.raises(ValueError):
         parse_changelog("# Changelog\n\nNo bullets here.\n")
+
+
+from cmm.collect_changelog import assert_no_horizon_clamp
+
+
+def test_assert_no_horizon_clamp_passes_when_first_date_is_distinct():
+    # earliest version dated well after the others -> not clamped
+    dates = {"0.2.1": "2025-02-24", "0.2.2": "2025-02-25", "1.0.0": "2025-05-22"}
+    assert_no_horizon_clamp(dates)  # should not raise
+
+
+def test_assert_no_horizon_clamp_raises_when_many_versions_share_oldest_date():
+    # >1 version stamped with the identical oldest date == clone-horizon clamp
+    dates = {"0.2.1": "2025-02-24", "0.2.2": "2025-02-24",
+             "0.2.3": "2025-02-24", "1.0.0": "2025-05-22"}
+    import pytest
+    with pytest.raises(ValueError, match="clone horizon"):
+        assert_no_horizon_clamp(dates)

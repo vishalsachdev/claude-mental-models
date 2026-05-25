@@ -60,13 +60,51 @@ def parse_changelog(markdown: str) -> list[dict]:
 
 
 def clone_or_update_repo(dest: Path) -> Path:
-    """Clone anthropics/claude-code (or fetch if already present)."""
+    """Clone anthropics/claude-code (full history) or fetch if already present.
+
+    Full history (no --depth) is required: a shallow clone clamps the oldest
+    versions' git dates to the clone horizon (fixes P8).
+    """
     dest = Path(dest)
     if (dest / ".git").exists():
         subprocess.run(["git", "-C", str(dest), "fetch", "--all"], check=True)
     else:
-        subprocess.run(["git", "clone", "--depth", "1000", REPO_URL, str(dest)], check=True)
+        subprocess.run(["git", "clone", REPO_URL, str(dest)], check=True)
     return dest
+
+
+def assert_no_horizon_clamp(dates: dict[str, str],
+                            initial_batch_date: str | None = None) -> None:
+    """Raise if >1 version shares the oldest date (a shallow-clone artifact).
+
+    With full history every version heading was added in its own commit, so
+    the oldest date should belong to exactly one version.
+
+    Exception: the upstream `anthropics/claude-code` repo's very first commit
+    seeded CHANGELOG.md with 17 versions on 2025-04-02. Callers can pass
+    `initial_batch_date` (the date of that genuine initial commit) to skip
+    the check when the shared-oldest-date equals that legitimate batch.
+    """
+    if not dates:
+        return
+    oldest = min(dates.values())
+    clamped = sorted(v for v, d in dates.items() if d == oldest)
+    if len(clamped) > 1 and oldest != initial_batch_date:
+        raise ValueError(
+            f"{len(clamped)} versions share the oldest date {oldest} "
+            f"({clamped}) — likely clamped to the clone horizon. "
+            "Re-clone with full history.")
+
+
+def _first_commit_date(repo: Path, path: str = "CHANGELOG.md") -> str | None:
+    """ISO date of the first commit that touched `path`, or None if absent."""
+    repo = Path(repo)
+    out = subprocess.run(
+        ["git", "-C", str(repo), "log", "--reverse", "--date=short",
+         "--format=%ad", "--", path],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip().splitlines()
+    return out[0] if out else None
 
 
 def version_dates(repo: Path) -> dict[str, str]:
@@ -101,6 +139,7 @@ def collect(repo_dir: Path = Path("data/raw/claude-code"),
     repo = clone_or_update_repo(repo_dir)
     entries = parse_changelog((repo / "CHANGELOG.md").read_text())
     dates = version_dates(repo)
+    assert_no_horizon_clamp(dates, initial_batch_date=_first_commit_date(repo))
     undated = sorted({e["version"] for e in entries} - set(dates))
     if undated:
         print(f"WARNING: {len(undated)} versions have no git date: {undated}")
