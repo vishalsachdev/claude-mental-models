@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 
 from cmm.cache import cached_call
+from cmm.render_blogs import render_post
 
 INDEX_URLS = [
     "https://www.anthropic.com/news",
@@ -70,8 +71,17 @@ def extract_post(html: str) -> dict:
     """
     title_m = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S | re.I)
     title = re.sub(r"<[^>]+>", "", title_m.group(1)).strip() if title_m else ""
-    date_m = re.search(r'datetime="(\d{4}-\d{2}-\d{2})', html) \
-        or re.search(r"\b(\d{4}-\d{2}-\d{2})\b", html)
+    # Look in order: explicit <time datetime=…>, then Next.js SSR JSON.
+    # anthropic.com rendered pages store the publish date as `publishedOn`
+    # in an escaped-JSON SSR blob (no <time> tag). Prefer that field over
+    # `_createdAt`, which is the CMS creation date and can be months earlier
+    # than the actual publish date.
+    date_m = (
+        re.search(r'datetime="(\d{4}-\d{2}-\d{2})', html)
+        or re.search(r'publishedOn\\?":\s*\\?"(\d{4}-\d{2}-\d{2})', html)
+        or re.search(r'_createdAt\\?":\s*\\?"(\d{4}-\d{2}-\d{2})', html)
+        or re.search(r"(\d{4}-\d{2}-\d{2})", html)
+    )
     date = date_m.group(1) if date_m else None
     body = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html, flags=re.S | re.I)
     body = re.sub(r"<[^>]+>", " ", body)
@@ -96,6 +106,7 @@ def collect(out: Path = Path("data/raw/blogs.json")) -> Path:
             html = cached_call(f"post::{url}", lambda u=url: fetch(u, client))
             post = extract_post(html)
             post["url"] = url
+            post = render_post(post)  # A2: overlay headless-rendered date/body
             posts.append(post)
 
     missing = [p["url"] for p in posts if not p["date"]]
