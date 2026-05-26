@@ -559,20 +559,82 @@ embedding cluster — these are usually topically tight. Filter on `themes` to
 audit one anchor theme's assignment quality. The interesting entries are the
 ones where `mini_theme` (the bottom-up label) and `themes` (the consolidated
 labels) disagree — those are the seams where consolidation lost information.
+
+The **`url`** column links each entry back to its canonical source: blog
+posts point at anthropic.com; changelog entries point at the version section
+of the upstream `CHANGELOG.md` on GitHub. Click any URL to verify the entry
+yourself.
 """
     )
 
 
 @app.cell
 def _(mo, pl, embeddings, codes):
+    from cmm.urls import entry_url
     mini = pl.read_parquet("data/processed/mini_themes.parquet")
     clusters = (embeddings
                 .join(codes.select("entry_id", "themes"), on="entry_id", how="left")
                 .join(mini.select("cluster_label", "mini_theme"),
                       on="cluster_label", how="left")
+                .with_columns(
+                    pl.struct(["entry_id", "source", "version"])
+                    .map_elements(
+                        lambda s: entry_url(s["entry_id"], s["source"], s["version"]),
+                        return_dtype=pl.Utf8,
+                    ).alias("url"))
                 .select("entry_id", "text", "cluster_label", "mini_theme",
-                        "themes", "umap_x", "umap_y"))
+                        "themes", "url", "umap_x", "umap_y"))
     mo.ui.data_explorer(clusters)
+
+
+@app.cell
+def _(mo):
+    mo.md(
+"""
+## Drill into a theme
+
+Pick one of the 13 anchor themes below to get the full list of corpus entries
+the pipeline assigned to it, with **clickable links** back to the source
+(anthropic.com for blogs; the CHANGELOG.md anchored to the version section
+for changelog entries).
+
+**How to read it.** This is your verifiability surface. If you doubt a theme
+— or want to see whether the assigned entries actually match the theme's
+description — open the entries and check.
+"""
+    )
+
+
+@app.cell
+def _(mo, themes):
+    theme_pick = mo.ui.dropdown(
+        options=sorted(themes["name"].to_list()),
+        value=sorted(themes["name"].to_list())[0],
+        label="Theme to drill into",
+    )
+    theme_pick
+    return (theme_pick,)
+
+
+@app.cell
+def _(mo, pl, embeddings, codes, theme_pick):
+    from cmm.urls import entry_url as _entry_url
+    sel_theme = theme_pick.value
+    members_ids = (codes.explode("themes").drop_nulls("themes")
+                   .filter(pl.col("themes") == sel_theme)["entry_id"].to_list())
+    drill = (embeddings.filter(pl.col("entry_id").is_in(members_ids))
+             .with_columns(
+                 pl.struct(["entry_id", "source", "version"])
+                 .map_elements(
+                     lambda s: _entry_url(s["entry_id"], s["source"], s["version"]),
+                     return_dtype=pl.Utf8,
+                 ).alias("url"))
+             .select("date", "version", "source", "text", "url")
+             .sort("date", descending=True))
+    mo.vstack([
+        mo.md(f"**{sel_theme}** — {drill.height} entries assigned by the pipeline. Click any `url` to verify."),
+        mo.ui.table(drill, page_size=25),
+    ])
 
 
 @app.cell
