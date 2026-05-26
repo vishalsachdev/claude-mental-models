@@ -21,32 +21,72 @@ months. `@research` project — pin versions, `uv` venv.
 
 ## Current Focus
 
-**v1 shipped and merged to `main`.** Council-reviewed; limitations in `docs/methodology.md`.
+**Methodological rebuild + persona lens shipped and merged to `main`.**
+The interpretive layer is now triangulated (B1 bottom-up clusters → B1.5
+consolidation → corroborated by B2 top-down + B3 GPT-5.5 via `codex exec`),
+producing 13 anchor themes with confidence tiers (7 high / 3 provisional /
+3 bottom-up-only) and a first-class `coherence.parquet` diagnostic
+(median 0.30 — the smearing v1 had is now *measurable*, not fixed). The
+notebook (`notebooks/analysis.py`) is persona-aware: pick analyst / pm_ops /
+researcher / vibe_coder and the mental-model map + emergence chart + theme
+table all re-orient.
 
-**Next: methodological rebuild** — spec at `docs/superpowers/specs/2026-05-21-analysis-improvement-design.md`.
-Fixes 9 named problems (cluster↔theme reconciliation, top-down bias, reflexivity,
-33% unassigned, etc.). 3 open questions — **resolved 2026-05-21**:
-1. Cross-model theme pass → **GPT-5.5**.
-2. Unassigned residual → **its own analysis section** (not a forced "Maintenance" category).
-3. Headless blog re-scrape (A2) → **yes, timeboxed** — single headless pass, accept
-   partial date recovery; don't iterate.
-
-Recommended path: brainstorm → spec → Codex Plan Reviewer → subagent-driven execution.
+**Open follow-ups (next session, in priority):**
+1. Share the notebook publicly — molab is the canonical path (RAG chat
+   won't work; everything else will). Probe `marimo export html-wasm`
+   first to see if a fully-static version is viable.
+2. Manual audit — `data/processed/audit_sample.csv` (40 rows, blank `agree`
+   column), record per-stratum agreement rates in `findings.md`.
+3. Phase 3 personal-artifact overlay (still deferred).
 
 ## Roadmap
 
-- Phase 1 (done): v1 pipeline + marimo notebook + methodology note.
-- Phase 2 (planned): methodological rebuild — see improvement plan above.
-- Phase 3 (deferred): overlay the user's ~100 personal artifacts as a parallel
-  adoption timeline (`personal_artifact` table reserved in the spec).
+- [x] Phase 1: v1 pipeline + marimo notebook + methodology note.
+- [x] Phase 2: methodological rebuild + persona lens (merged 2026-05-25).
+- [ ] Phase 2b: publish notebook publicly (molab or WASM static).
+- [ ] Phase 2c: manual audit (40 stratified rows → agreement rates).
+- [ ] Phase 3 (deferred): overlay ~100 personal artifacts as a parallel
+      adoption timeline (`personal_artifact` table reserved in the spec).
+
+## Gotchas (rebuild-era)
+
+- **`codex exec` hangs without `stdin=DEVNULL`.** Even with a positional
+  prompt, codex reads stdin and blocks if the parent has an open pipe/TTY.
+  `src/cmm/codex_llm.py` passes `stdin=subprocess.DEVNULL` — don't remove
+  it. Smoke-test via `uv run python -c "from cmm.codex_llm import
+  complete_json; print(complete_json('Return {\"ok\": true}.'))"` (returns
+  in ~10s).
+- **B3 reproducibility:** `data/processed/independent_derivation.json` is
+  committed. `independent_themes()` reads it if present and never re-calls
+  Codex. Don't delete this file.
+- **The 2025-04-02 changelog floor is real, not a clone-depth artifact.**
+  Upstream `anthropics/claude-code` committed its initial `CHANGELOG.md`
+  with 17 versions seeded in one batch. A1's full-history clone is a
+  defensive safeguard, not a data fix.
+- **marimo cell variables must be unique** across the notebook (reactive
+  graph requirement). If two cells define `selected_p`, marimo errors
+  on load — rename one.
 
 ## Session Log
 
-### 2026-05-20 / 05-21
-- Built v1 end-to-end (spec → plan → 12 tasks via subagent-driven dev): two-corpus
-  pipeline, embeddings spine, two-stage thematic coding, RAG, marimo notebook.
-  Merged to `main`.
-- Council-validated the methodology; wrote `docs/methodology.md`; ran the
-  cluster×theme cross-tab (confirmed abstract themes smear across clusters).
-- Wrote the improvement plan (methodological rebuild) — see Current Focus.
-- Next: resolve the 3 open questions, then brainstorm the rebuild into a spec.
+### 2026-05-22 → 2026-05-26
+- Brainstormed the rebuild into a spec (3 open questions resolved); plan
+  through Codex Plan Reviewer (REJECT → R1 fixes → executed).
+- Executed all 15 rebuild tasks via subagent-driven dev: A1–A3 corpus +
+  embeddings, B1–B7 triangulated theme layer, C1–C4 reconciliation +
+  presentation. Merged to main.
+- **3 rounds of `codex review --base main`**, 6 findings caught and
+  fixed (P1 shallow-clone, P1 stale theme table, P2 blog counts,
+  P2 embedding docs, P2 maintenance leak in heatmap). Each round caught
+  real bugs.
+- Notebook reframed as Why/How/What with per-chart narrative; **persona
+  lens** added (`src/cmm/persona_lens.py` → `persona_relevance.parquet`,
+  52 rows). Notebook now persona-aware: title cell, "Your mental-model
+  map" headline, theme-emergence chart, and theme table all reshape per
+  persona.
+- Coherence finding: median 0.30 across 13 themes; only 2 (Permissions,
+  MCP) clear 0.5 — `methodology.md §3.3` engages this honestly as the
+  rebuild's most honest output.
+- Next: publish publicly (molab probe) → manual audit.
+
+*Older entries archived to `docs/session-archive.md`.*
