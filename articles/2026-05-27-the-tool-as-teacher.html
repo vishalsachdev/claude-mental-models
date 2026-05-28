@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Tool as Teacher</title>
+<style>
+  body { max-width: 720px; margin: 2em auto; padding: 0 1em; font-family: Georgia, serif; font-size: 18px; line-height: 1.6; color: #1a1a1a; }
+  h1 { font-size: 1.9em; line-height: 1.2; margin-top: 0; }
+  h2 { font-size: 1.4em; margin-top: 1.8em; border-bottom: 1px solid #eee; padding-bottom: 0.2em; }
+  h3 { font-size: 1.15em; margin-top: 1.5em; }
+  blockquote { border-left: 3px solid #888; margin-left: 0; padding-left: 1em; color: #555; font-style: italic; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.95em; }
+  th, td { border: 1px solid #ccc; padding: 0.5em 0.8em; text-align: left; }
+  th { background: #f4f4f4; font-weight: 600; }
+  code { background: #f4f4f4; padding: 0.1em 0.4em; border-radius: 3px; font-size: 0.92em; font-family: 'SF Mono', Menlo, monospace; }
+  a { color: #0a66c2; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 2em 0; }
+  em { color: #444; }
+</style>
+</head>
+<body>
+<h1
+id="the-tool-as-teacher-what-14-months-of-claude-code-releases-were-trying-to-make-you-understand">The
+Tool as Teacher: What 14 Months of Claude Code Releases Were Trying to
+Make You Understand</h1>
+<p><em>Published 2026-05-27 · The Hybrid Builder</em></p>
+<p>I spent the last week analyzing Claude Code's release history the way
+an anthropologist might read inscriptions on a temple wall: not to count
+the carvings, but to ask what beliefs they were trying to instill. The
+result is <a
+href="https://vishalsachdev.github.io/claude-mental-models/">an
+interactive notebook</a> anyone can open in a browser, pick a persona,
+and see the mental models the tool was guiding its users to build over
+its first 14 months.</p>
+<p>The framing matters because the obvious question — "how have
+developers' mental models of Claude Code evolved?" — is the wrong one.
+We cannot observe what anyone believed. We can only observe what the
+tool <em>shipped</em>. So the question I ended up asking is the
+inverse:</p>
+<blockquote>
+<p><strong>What mental models did Claude Code's evolving surface invite
+its users to build?</strong></p>
+</blockquote>
+<p>That's an inscription-on-the-wall claim. The tool is the teacher; the
+changelog is the syllabus. Whether anyone actually learned the lesson is
+between them and their text editor.</p>
+<h2 id="two-layers-very-different-reliability">Two layers, very
+different reliability</h2>
+<p>Claude Code's public <code>CHANGELOG.md</code> covers 3,057 entries
+across 296 releases. Anthropic published 33 related blog posts in
+roughly the same window. That's the raw text. From it the notebook
+builds two analytical layers:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>What it is</th>
+<th>How much to trust it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Descriptive</strong></td>
+<td>Volume per month, churn ratios, what fraction of releases got
+narrated in a blog post</td>
+<td>High — these are counted, not inferred</td>
+</tr>
+<tr>
+<td><strong>Interpretive</strong></td>
+<td>The 13 named "mental models" the surface increasingly demanded</td>
+<td>Tiered — <code>high</code> / <code>provisional</code> /
+<code>bottom_up_only</code>, with a coherence score per theme</td>
+</tr>
+</tbody>
+</table>
+<p>The descriptive layer alone tells a clear story. Release pace went
+from ~30–80 entries/month in early 2025 to ~600/month by early 2026 — an
+order-of-magnitude acceleration. Removals trail behind additions by a
+wide margin. <strong>Only 37.8% of releases were narrated in a matching
+blog post</strong>, and the trough months are exactly the
+highest-velocity ones. Whatever Claude Code is demanding of users, it's
+demanding more of it, faster, with less explanation.</p>
+<p>That's the boring half of the story. The interesting half is what the
+tool was teaching.</p>
+<h2 id="the-interpretive-layer-is-triangulated-not-vibed">The
+interpretive layer is triangulated, not vibed</h2>
+<p>The first version of this analysis used a single top-down LLM pass:
+feed Claude a sample of changelog entries, ask for ~10 themes, accept
+the answer. That's how most "LLM-as-coder" analyses work, and it
+produces something plausible. It also produces something completely
+unfalsifiable.</p>
+<p>So <a
+href="https://github.com/vishalsachdev/claude-mental-models/blob/main/docs/methodology.md">I
+rebuilt it</a> with three independent derivations and a coherence
+diagnostic:</p>
+<ol type="1">
+<li><strong>Bottom-up.</strong> Embed every corpus item, cluster with <a
+href="https://hdbscan.readthedocs.io/">HDBSCAN</a>, and for each of the
+43 resulting clusters ask Claude what <em>latent user assumption</em>
+the items share. → 43 cluster-grounded mini-themes, then consolidated
+into 13 anchor themes.</li>
+<li><strong>Top-down.</strong> Run the original v1 pass — Claude over a
+stratified sample. → ~10 themes.</li>
+<li><strong>Independent.</strong> Run the same top-down pass with
+GPT-5.5 via the <a
+href="https://github.com/openai/codex"><code>codex exec</code></a> CLI.
+Same prompt, different model. → another ~10 themes.</li>
+<li><strong>Corroborate.</strong> For each of the 13 anchors, GPT-5.5
+judges whether the top-down and independent derivations <em>also</em>
+found it. Two booleans set the confidence tier: <code>high</code>
+(both), <code>provisional</code> (one), <code>bottom_up_only</code>
+(neither).</li>
+</ol>
+<p>The bottom-up step is the methodological value-add. It surfaced three
+themes — <em>Terminal Rendering</em>, <em>UI Navigation</em>,
+<em>Workspace Isolation</em> — that the top-down passes both missed but
+the data clusters clearly demanded. Those are real competencies the tool
+requires; they're just ones a "summarize the changelog" prompt
+underweights because they're surface-level, not conceptual.</p>
+<p>The coherence diagnostic is the rebuild's most honest output. For
+each theme, I measured what fraction of its assigned entries actually
+cluster together in embedding space. <strong>Median coherence is
+0.30</strong> — meaning a typical theme's most-common cluster holds only
+30% of that theme's entries. Only two themes (Permissions and MCP) clear
+0.5. The others smear across the embedding space. That's a measured
+limitation, not a defect to fix: it tells you which theme labels to
+treat as <strong>crisp phenomena</strong> versus <strong>organizing
+labels</strong>. The previous version of this analysis just declared
+themes; the new one tells you which ones to believe.</p>
+<h2 id="the-persona-finding">The persona finding</h2>
+<p>This is the discovery that surprised me, and it's why the <a
+href="https://vishalsachdev.github.io/claude-mental-models/">notebook</a>
+has a persona radio at the top.</p>
+<p>I asked Claude to re-read all 13 themes through four user lenses —
+<strong>analyst</strong>, <strong>PM running ops</strong>,
+<strong>researcher</strong>, <strong>vibe coder</strong> — and score
+each theme <code>high</code> / <code>medium</code> / <code>low</code>
+relevance with a one-sentence "you will need to understand…"
+mental-model statement per persona. The four personas are the audiences
+I keep encountering when teaching Claude Code: the data person who lives
+in notebooks, the operator who builds with Skills and schedules, the
+researcher running long-form analyses, and the non-pro who lets the
+agent drive. Then I plotted the result.</p>
+<p>The distribution is the finding:</p>
+<table>
+<thead>
+<tr>
+<th>Persona</th>
+<th>Themes you must internalize</th>
+<th>Themes you can mostly ignore</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Analyst</strong></td>
+<td>3 (Context Window, Skills, Model Behavior)</td>
+<td>7</td>
+</tr>
+<tr>
+<td><strong>PM running ops</strong></td>
+<td><strong>8</strong> (almost everything)</td>
+<td>3</td>
+</tr>
+<tr>
+<td><strong>Researcher</strong></td>
+<td>3</td>
+<td>4</td>
+</tr>
+<tr>
+<td><strong>Vibe coder</strong></td>
+<td>3</td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+<p>The PM-ops outlier is the surprise. Running ops with Claude touches
+<em>nearly every concept</em> the tool surfaces — sessions, multi-agent
+orchestration, configuration policies, permissions, MCP, plugins,
+observability. The analyst is the narrowest persona: they really only
+need to internalize that context budgets are finite, that Skills are the
+extension surface, and that which model is doing the work affects
+whether your SQL is correct.</p>
+<p>The same theme reads differently per persona, too. "Context Window as
+a Finite, Managed Resource" <em>for an analyst</em> means: <em>every
+table schema and sample dataset you paste in consumes a fixed
+budget.</em> The same theme <em>for a PM running ops</em> means:
+<em>each scheduled or concurrent agent run occupies a distinct session
+with its own token budget — and a long-running automation may hit the
+wall mid-task.</em> Same competency, different mental model.</p>
+<p>This is what I think the analysis really shows: <strong>the tool is
+teaching different mental models to different audiences
+simultaneously</strong>, and most product communication treats them as
+one. The changelog can't help that — it's one stream. But anyone trying
+to onboard onto Claude Code as a non-coder is going to find the
+developer-flavored guides demanding things they don't need to know,
+while underspecifying the things they actually do.</p>
+<h2 id="what-you-can-do-with-it">What you can do with it</h2>
+<p><a href="https://vishalsachdev.github.io/claude-mental-models/">Open
+the notebook</a>, pick the persona that fits you, and read your
+mental-model map. Every theme has a click-through to the actual
+changelog entries the pipeline assigned to it — both the anthropic.com
+blog posts (full URLs) and the upstream <code>CHANGELOG.md</code>
+anchored at the version section. If a theme description looks wrong, you
+can audit it in two clicks.</p>
+<p>This is the verifiability surface I wish more LLM-driven analyses
+had. The themes are LLM-generated; the <em>evidence for them</em> is one
+click away.</p>
+<p>The companion to this piece is <a
+href="https://chatwithgpt.substack.com/p/the-self-improving-loop-how-claude">The
+Self-Improving Loop</a>, where I described how Claude Code's
+<code>/insights</code> turns your own usage data into compounding
+returns over time. That article was about reading <em>your</em>
+footprint; this one is about reading the <em>tool's</em> footprint and
+asking what it was teaching you while you weren't looking. The two
+analyses are inverse views of the same surface.</p>
+<p>The full pipeline — corpus collection, triangulation, persona lens,
+audit sample — is in the <a
+href="https://github.com/vishalsachdev/claude-mental-models">repo</a>.
+It's reproducible end-to-end from the public changelog. If you want to
+try this on a different tool's release history, the methodology should
+port; you'd need to swap the corpus collectors and re-tune the embedding
+parameters, but the triangulated theme layer is general.</p>
+<p>I think we'll see more of this kind of analysis in the next year —
+reading product surfaces as pedagogical artifacts rather than as feature
+lists. The changelogs of the tools we use every day are quietly teaching
+us what to expect, configure, and reason about. We just haven't been
+reading them that way.</p>
+<hr />
+<p><em>The notebook is live at <a
+href="https://vishalsachdev.github.io/claude-mental-models/">vishalsachdev.github.io/claude-mental-models</a>.
+Source, methodology, and findings docs in the <a
+href="https://github.com/vishalsachdev/claude-mental-models">repo</a>.</em></p>
+</body>
+</html>
