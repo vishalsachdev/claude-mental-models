@@ -6,10 +6,18 @@ months. `@research` project — pin versions, `uv` venv.
 
 ## Stack & commands
 
-- Python 3.13 via `uv`. Package: `src/cmm/`. Notebook: `notebooks/analysis.py` (marimo).
+- Python 3.13 via `uv`. Package: `src/cmm/`. Notebook: `notebooks/analysis.py` (marimo, full/local — has RAG chat).
 - Run the pipeline: `uv run python -m cmm.{collect_changelog,collect_blogs,tag_and_join,embed_cluster,thematic_coding}`
-- View deliverable: `uv run marimo run notebooks/analysis.py`
+- View local deliverable: `uv run marimo run notebooks/analysis.py`
 - Tests: `uv run pytest -q`
+
+**Published artifacts (external — agent can't guess these):**
+- Public repo: `https://github.com/vishalsachdev/claude-mental-models` (origin)
+- Live notebook (GitHub Pages, WASM): `https://vishalsachdev.github.io/claude-mental-models/`
+- Pages source: `main:/docs`. Public notebook = `notebooks/analysis_public.py` (WASM-safe;
+  fetches data from raw.githubusercontent.com, no RAG). Rebuild + redeploy with:
+  `uv run marimo export html-wasm notebooks/analysis_public.py -o docs/ --mode run -f` then commit `docs/` + push.
+- Article draft: `articles/2026-05-27-the-tool-as-teacher.md` (Hybrid Builder; not yet published to platforms).
 
 ## Gotchas (non-obvious)
 
@@ -21,29 +29,31 @@ months. `@research` project — pin versions, `uv` venv.
 
 ## Current Focus
 
-**Methodological rebuild + persona lens shipped and merged to `main`.**
-The interpretive layer is now triangulated (B1 bottom-up clusters → B1.5
-consolidation → corroborated by B2 top-down + B3 GPT-5.5 via `codex exec`),
-producing 13 anchor themes with confidence tiers (7 high / 3 provisional /
-3 bottom-up-only) and a first-class `coherence.parquet` diagnostic
-(median 0.30 — the smearing v1 had is now *measurable*, not fixed). The
-notebook (`notebooks/analysis.py`) is persona-aware: pick analyst / pm_ops /
-researcher / vibe_coder and the mental-model map + emergence chart + theme
-table all re-orient.
+**Rebuild shipped, notebook published, article drafted.** The triangulated
+analysis (13 anchor themes, 7 high / 3 provisional / 3 bottom-up-only,
+coherence median 0.30) is merged; the persona-aware notebook is **live on
+GitHub Pages** as a WASM build; a 1,304-word Hybrid Builder article
+(`articles/2026-05-27-the-tool-as-teacher.md`) is written, link-verified, and
+editorially reviewed (3 P1s fixed, 4 P2s left for the user).
 
 **Open follow-ups (next session, in priority):**
-1. Share the notebook publicly — molab is the canonical path (RAG chat
-   won't work; everything else will). Probe `marimo export html-wasm`
-   first to see if a fully-static version is viable.
-2. Manual audit — `data/processed/audit_sample.csv` (40 rows, blank `agree`
-   column), record per-stratum agreement rates in `findings.md`.
+1. **Publish the article to platforms** — `/publish-to-substack`,
+   `/publish-to-linkedin`, `/publish-to-twitter`. Optionally cover images
+   (RSA-Animate sketches) + a session-transcript gist first. 4 P2 polish
+   notes from the editorial review are still open (temple-wall echo,
+   buried 37.8% stat, concrete "try it on Cursor/Linear" examples).
+2. **Manual audit** — `data/processed/audit_sample.csv` (40 rows, blank
+   `agree` column), record per-stratum agreement rates in `findings.md`.
 3. Phase 3 personal-artifact overlay (still deferred).
 
 ## Roadmap
 
 - [x] Phase 1: v1 pipeline + marimo notebook + methodology note.
 - [x] Phase 2: methodological rebuild + persona lens (merged 2026-05-25).
-- [ ] Phase 2b: publish notebook publicly (molab or WASM static).
+- [x] Phase 2b: publish notebook publicly — GitHub Pages WASM build, live at
+      `vishalsachdev.github.io/claude-mental-models/` (2026-05-27).
+- [x] Phase 2d: write the Hybrid Builder article (drafted 2026-05-27).
+- [ ] Phase 2e: publish article to Substack / LinkedIn / Twitter.
 - [ ] Phase 2c: manual audit (40 stratified rows → agreement rates).
 - [ ] Phase 3 (deferred): overlay ~100 personal artifacts as a parallel
       adoption timeline (`personal_artifact` table reserved in the spec).
@@ -69,24 +79,23 @@ table all re-orient.
 
 ## Session Log
 
-### 2026-05-22 → 2026-05-26
-- Brainstormed the rebuild into a spec (3 open questions resolved); plan
-  through Codex Plan Reviewer (REJECT → R1 fixes → executed).
-- Executed all 15 rebuild tasks via subagent-driven dev: A1–A3 corpus +
-  embeddings, B1–B7 triangulated theme layer, C1–C4 reconciliation +
-  presentation. Merged to main.
-- **3 rounds of `codex review --base main`**, 6 findings caught and
-  fixed (P1 shallow-clone, P1 stale theme table, P2 blog counts,
-  P2 embedding docs, P2 maintenance leak in heatmap). Each round caught
-  real bugs.
-- Notebook reframed as Why/How/What with per-chart narrative; **persona
-  lens** added (`src/cmm/persona_lens.py` → `persona_relevance.parquet`,
-  52 rows). Notebook now persona-aware: title cell, "Your mental-model
-  map" headline, theme-emergence chart, and theme table all reshape per
-  persona.
-- Coherence finding: median 0.30 across 13 themes; only 2 (Permissions,
-  MCP) clear 0.5 — `methodology.md §3.3` engages this honestly as the
-  rebuild's most honest output.
-- Next: publish publicly (molab probe) → manual audit.
+### 2026-05-27 / 05-28
+- Reframed the deliverable around **"the tool guides users to build mental
+  models"** (restored the foreground framing C3 had downgraded) and added a
+  **persona lens**: `src/cmm/persona_lens.py` scores all 13 themes ×
+  4 personas (analyst / pm_ops / researcher / vibe_coder) → 52-row
+  `persona_relevance.parquet`. Notebook now has a persona radio; mental-model
+  map, emergence chart, and theme table all reshape per persona.
+  (analyst = 3 high themes, pm_ops = 8 — running ops touches nearly everything.)
+- Added **click-through verification links** (`src/cmm/urls.py`): every entry
+  links to anthropic.com (blogs) or the CHANGELOG.md version anchor (changelog).
+  New "Drill into a theme" notebook section.
+- **Published the notebook**: created public GitHub repo, WASM build via
+  `analysis_public.py` (httpx-fetches data, no RAG), GitHub Pages from
+  `main:/docs`. Live + verified 200.
+- **Wrote the Hybrid Builder article** (`articles/2026-05-27-the-tool-as-teacher.md`,
+  1,304 words) via the write-article skill: links verified, editorial review
+  (0 P0, 3 P1 fixed, 4 P2 open).
+- Next: publish article to platforms (Substack/LinkedIn/Twitter) + manual audit.
 
 *Older entries archived to `docs/session-archive.md`.*
