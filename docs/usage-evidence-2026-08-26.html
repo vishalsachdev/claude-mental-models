@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%235056a8'/%3E%3C/svg%3E">
+  <title>Vishal's Claude Code mental-model evidence</title>
+  <style>
+    :root {
+      --paper:#f7f8fb; --card:#ffffff; --ink:#172033; --muted:#64708a;
+      --line:#dce1eb; --indigo:#5056a8; --blue:#2976a8; --mint:#2f8a73;
+      --amber:#b87925; --rose:#a84f63; --wash:#eef0fa; --shadow:0 12px 36px rgba(30,41,71,.08);
+    }
+    * { box-sizing:border-box; }
+    html, body { margin:0; max-width:100%; overflow-x:hidden; }
+    body { background:var(--paper); color:var(--ink); font-family:"PT Sans",Inter,ui-sans-serif,system-ui,-apple-system,sans-serif; line-height:1.55; }
+    main { width:min(1180px,calc(100% - 40px)); margin:0 auto; }
+    h1,h2,h3 { font-family:Lora,Georgia,"Times New Roman",serif; line-height:1.08; margin:0; }
+    h1 { max-width:920px; font-size:clamp(2.7rem,7vw,6.4rem); letter-spacing:-.055em; }
+    h2 { font-size:clamp(2rem,4vw,3.4rem); letter-spacing:-.035em; }
+    h3 { font-size:1.38rem; letter-spacing:-.02em; }
+    p { margin:.65rem 0 0; }
+    .mono,.eyebrow,.metric,.score,.date,.months,.legend { font-family:"Fira Mono",ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .hero { padding:72px 0 52px; border-bottom:1px solid var(--line); position:relative; }
+    .hero::after { content:"11 / 13"; position:absolute; right:0; top:36px; color:var(--wash); font:800 clamp(5rem,14vw,12rem)/1 Georgia,serif; z-index:-1; }
+    .eyebrow { color:var(--indigo); text-transform:uppercase; letter-spacing:.13em; font-size:.74rem; font-weight:700; margin-bottom:18px; }
+    .dek { max-width:780px; font-size:clamp(1.05rem,2vw,1.35rem); color:var(--muted); margin-top:22px; }
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin:38px 0 0; }
+    .stat { background:var(--card); padding:20px; min-width:0; }
+    .stat strong { display:block; font:700 2.5rem/1 Georgia,serif; color:var(--indigo); }
+    .stat span { display:block; color:var(--muted); margin-top:5px; font-size:.9rem; }
+    section { padding:64px 0; border-bottom:1px solid var(--line); }
+    .section-head { display:grid; grid-template-columns:1fr minmax(260px,460px); gap:32px; align-items:end; margin-bottom:30px; }
+    .section-head p { color:var(--muted); }
+    .method { display:grid; grid-template-columns:1.2fr .8fr; gap:28px; }
+    .note { background:var(--wash); border-left:4px solid var(--indigo); padding:20px 22px; }
+    .rules { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    .rule { border:1px solid var(--line); background:var(--card); padding:16px; }
+    .rule b { font:700 1.55rem/1 Georgia,serif; color:var(--indigo); }
+    .rule span { display:block; color:var(--muted); font-size:.84rem; margin-top:7px; }
+    .cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+    .card { background:var(--card); border:1px solid var(--line); box-shadow:var(--shadow); padding:24px; min-width:0; position:relative; }
+    .card.absent { border-style:dashed; box-shadow:none; }
+    .card-head { display:grid; grid-template-columns:1fr 54px; gap:16px; align-items:start; }
+    .kicker { color:var(--muted); font-size:.72rem; letter-spacing:.09em; text-transform:uppercase; margin-bottom:7px; }
+    .score { width:54px; height:54px; border-radius:50%; display:grid; place-items:center; background:var(--indigo); color:white; font-size:1.1rem; font-weight:700; }
+    .s3 { background:var(--mint); } .s2 { background:var(--indigo); } .s1 { background:var(--amber); } .s0 { background:var(--rose); }
+    .meta { display:flex; flex-wrap:wrap; gap:7px 14px; margin:16px 0; color:var(--muted); font-size:.82rem; }
+    .meta b { color:var(--ink); }
+    .signatures { color:var(--muted); font-size:.88rem; min-height:42px; }
+    .spark { display:grid; grid-template-columns:repeat(6,1fr); gap:5px; height:76px; align-items:end; margin:18px 0 3px; padding-top:8px; border-bottom:1px solid var(--line); }
+    .spark i { display:block; min-height:0; background:linear-gradient(180deg,var(--indigo),var(--blue)); border-radius:3px 3px 0 0; }
+    .months { display:grid; grid-template-columns:repeat(6,1fr); gap:5px; color:var(--muted); font-size:.62rem; text-align:center; text-transform:uppercase; }
+    blockquote { margin:16px 0 0; padding:0 0 0 14px; border-left:2px solid var(--line); color:var(--ink); font-family:Georgia,serif; font-size:.96rem; overflow-wrap:anywhere; }
+    blockquote small { display:block; color:var(--muted); font:400 .7rem/1.4 ui-monospace,monospace; margin-top:3px; }
+    .zero-control { margin-top:18px; padding:12px; background:var(--wash); font-size:.84rem; color:var(--muted); }
+    .timeline { display:grid; gap:14px; }
+    .tl-row { display:grid; grid-template-columns:minmax(180px,280px) 1fr; gap:20px; align-items:center; }
+    .tl-name { font-size:.9rem; }
+    .track { height:34px; position:relative; border-top:1px solid var(--line); margin-top:22px; }
+    .pin { position:absolute; top:-7px; width:13px; height:13px; border-radius:50%; background:var(--indigo); transform:translateX(-50%); }
+    .pin.use { background:var(--mint); }
+    .pin::after { content:attr(data-label); position:absolute; top:15px; left:50%; transform:translateX(-50%); white-space:nowrap; color:var(--muted); font:400 .62rem/1 ui-monospace,monospace; }
+    .absent-label { position:absolute; right:0; top:8px; color:var(--rose); font:.68rem ui-monospace,monospace; }
+    .legend { display:flex; gap:20px; color:var(--muted); font-size:.72rem; margin-bottom:26px; }
+    .legend i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; background:var(--indigo); }
+    .legend i.use { background:var(--mint); }
+    .gaps { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+    .gap { border-top:3px solid var(--rose); background:var(--card); padding:20px; }
+    .gap b { font-family:Georgia,serif; font-size:1.15rem; }
+    .gap p { color:var(--muted); font-size:.92rem; }
+    footer { padding:36px 0 56px; color:var(--muted); font-size:.84rem; }
+    a { color:var(--indigo); }
+    @media (max-width:760px) {
+      main { width:min(100% - 28px,1180px); }
+      .hero { padding-top:48px; }
+      .hero::after { top:24px; }
+      .stats,.rules { grid-template-columns:repeat(2,1fr); }
+      .section-head,.method,.cards,.tl-row,.gaps { grid-template-columns:1fr; }
+      .tl-row { gap:4px; }
+      section { padding:48px 0; }
+    }
+    @media (max-width:390px) {
+      main { width:calc(100% - 22px); }
+      .stats { grid-template-columns:1fr 1fr; }
+      .stat,.card { padding:17px; }
+      h1 { font-size:2.65rem; }
+      blockquote { font-size:.9rem; }
+    }
+    @media (prefers-color-scheme:dark) {
+      :root { --paper:#11141c; --card:#181d28; --ink:#edf0f7; --muted:#a9b1c3; --line:#303747; --indigo:#aeb4ff; --blue:#70b9e4; --mint:#63c5a5; --amber:#e6ae60; --rose:#e18398; --wash:#212638; --shadow:none; }
+      .score { color:#11141c; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="eyebrow">Personal usage overlay · 26 August 2026</div>
+    <h1>The habits in the history.</h1>
+    <p class="dek">Claude Code's release record suggested 13 mental models. Vishal's own prompts show direct evidence of 11—strongest around sessions, permissions, connections, and extensibility; absent around terminal display and input.</p>
+    <div class="stats">
+      <div class="stat"><strong>11</strong><span>models with evidence</span></div>
+      <div class="stat"><strong>4</strong><span>embedded habits</span></div>
+      <div class="stat"><strong>5</strong><span>recurring practices</span></div>
+      <div class="stat"><strong>2</strong><span>no direct evidence</span></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-head"><h2>A conservative reading</h2><p>Raw keyword counts were not trusted. The May 21 archive spike contained thousands of changelog items masquerading as user prompts, so the report isolates likely direct requests first.</p></div>
+    <div class="method">
+      <div>
+        <p><b>8,106 prompts across 680 recorded sessions</b> form the analytic set. Eligible prompts belong to interactive sessions, are no longer than 2,000 characters, and do not begin with known generated/source prefixes. FTS searches supplied candidates; examples were manually checked.</p>
+        <p>Monthly bars are normalized within each card. Counts—not bar heights across cards—should be compared between models.</p>
+      </div>
+      <div class="note"><b>Timeline warning</b><p>The personal archive begins 2026-03-01, after every source model emerged. “Lagging” means only “first observed later”; it cannot recover Vishal's true adoption date.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>How the scores work</h2><p>Every condition at a level must be met. This prevents one burst of repeated language from looking like a durable habit.</p></div>
+    <div class="rules">
+      <div class="rule"><b>0</b><span>No direct-prompt match.</span></div>
+      <div class="rule"><b>1</b><span>Evidence exists but misses the recurring rule.</span></div>
+      <div class="rule"><b>2</b><span>3+ months, 2%+ of sessions, 2+ signature families.</span></div>
+      <div class="rule"><b>3</b><span>5+ months, 10%+ of sessions, 3+ signature families.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Thirteen evidence cards</h2><p>Each card shows the source emergence date, first observed prompt, overall session share, March–August counts, and three short examples where evidence exists.</p></div>
+    <div class="cards">
+      <article class="card"><div class="card-head"><div><div class="kicker">Embedded · 244 prompts</div><h3>External connectivity</h3></div><div class="score s3">3/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>2026-03-01</b></span><span><b>23.24%</b> sessions</span></div><p class="signatures">MCP · connectors · webhooks/network/remote servers</p><div class="spark"><i style="height:88%" title="March 60"></i><i style="height:29%" title="April 20"></i><i style="height:2%" title="May 1"></i><i style="height:49%" title="June 33"></i><i style="height:91%" title="July 62"></i><i style="height:100%" title="August 68"></i></div><div class="months"><span>60</span><span>20</span><span>1</span><span>33</span><span>62</span><span>68</span></div><blockquote>“kill canvas mcp servers bg processes”<small>2026-03-13</small></blockquote><blockquote>“did i tell you that ms teams connector is enabled for chatgpt edu?”<small>2026-07-26</small></blockquote><blockquote>“do users who are logged in to remote server , need to do anything. restart codex or similar?”<small>2026-03-13</small></blockquote></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Embedded · 241 prompts</div><h3>Extensibility ecosystem</h3></div><div class="score s3">3/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>2026-03-01</b></span><span><b>20.59%</b> sessions</span></div><p class="signatures">skills · hooks · plugins · custom commands</p><div class="spark"><i style="height:100%" title="March 96"></i><i style="height:32%" title="April 31"></i><i style="height:0" title="May 0"></i><i style="height:27%" title="June 26"></i><i style="height:19%" title="July 18"></i><i style="height:73%" title="August 70"></i></div><div class="months"><span>96</span><span>31</span><span>0</span><span>26</span><span>18</span><span>70</span></div><blockquote>“lets update the /skill-creator skill”<small>2026-03-05</small></blockquote><blockquote>“what is this hook that failed. fix it”<small>2026-03-24</small></blockquote><blockquote>“explain how the cli-anything plugin helps me draw in blender”<small>2026-03-08</small></blockquote></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Trace · 13 prompts</div><h3>UI navigation & commands</h3></div><div class="score s1">1/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>2026-03-05</b></span><span><b>1.91%</b> sessions</span></div><p class="signatures">slash commands · status surfaces · navigation surfaces</p><div class="spark"><i style="height:80%" title="March 4"></i><i style="height:0" title="April 0"></i><i style="height:0" title="May 0"></i><i style="height:0" title="June 0"></i><i style="height:80%" title="July 4"></i><i style="height:100%" title="August 5"></i></div><div class="months"><span>4</span><span>0</span><span>0</span><span>0</span><span>4</span><span>5</span></div><blockquote>“i think it was inside the claude code session and i saw a slash command notigication”<small>2026-03-10</small></blockquote><blockquote>“why do i see :(codex/monday-outreach-dynamic-roster) in the status bar below”<small>2026-08-11</small></blockquote><blockquote>“no, ill do it manually when needed. if you need to make it a skill or slash command, do that”<small>2026-07-14</small></blockquote></article>
+
+      <article class="card absent"><div class="card-head"><div><div class="kicker">Absent · 0 prompts</div><h3>Terminal rendering & display</h3></div><div class="score s0">0/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>—</b></span><span><b>0%</b> sessions</span></div><p class="signatures">terminal output · ANSI/wrapping · render stability</p><div class="spark"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="months"><span>0</span><span>0</span><span>0</span><span>0</span><span>0</span><span>0</span></div><div class="zero-control"><b>No examples exist.</b> Seventeen apparent matches were generated/pasted payloads. Observations and summaries also returned zero. Same-path positive control: <span class="mono">MATCH 'Claude'</span> → 221.</div></article>
+
+      <article class="card absent"><div class="card-head"><div><div class="kicker">Absent · 0 prompts</div><h3>Terminal input & interaction</h3></div><div class="score s0">0/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>—</b></span><span><b>0%</b> sessions</span></div><p class="signatures">Vim/keybindings · multiline entry · hotkeys · paste handling</p><div class="spark"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="months"><span>0</span><span>0</span><span>0</span><span>0</span><span>0</span><span>0</span></div><div class="zero-control"><b>No examples exist.</b> Unfiltered hits were imported changelog items. Observations and summaries also returned zero. Same-path positive control: <span class="mono">MATCH 'Claude'</span> → 221.</div></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Recurring · 112 prompts</div><h3>Multi-agent orchestration</h3></div><div class="score s2">2/3</div></div><div class="meta"><span>emerged <b>2025-04-18</b></span><span>first use <b>2026-03-01</b></span><span><b>9.41%</b> sessions</span></div><p class="signatures">sub-agents · teams/fleets · delegation · parallel agents</p><div class="spark"><i style="height:27%" title="March 20"></i><i style="height:3%" title="April 2"></i><i style="height:1%" title="May 1"></i><i style="height:5%" title="June 4"></i><i style="height:13%" title="July 10"></i><i style="height:100%" title="August 75"></i></div><div class="months"><span>20</span><span>2</span><span>1</span><span>4</span><span>10</span><span>75</span></div><blockquote>“sure , use agent team to get it done faster”<small>2026-03-02</small></blockquote><blockquote>“yes, fix those and run the M4I7 test with parallel agents”<small>2026-07-27</small></blockquote><blockquote>“i think i dispatched devin to phase 2 manually”<small>2026-08-05</small></blockquote></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Embedded · 149 prompts</div><h3>Permission & security boundaries</h3></div><div class="score s3">3/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>2026-03-04</b></span><span><b>13.38%</b> sessions</span></div><p class="signatures">authority · sandbox/lists · read-only · approval gates</p><div class="spark"><i style="height:29%" title="March 22"></i><i style="height:13%" title="April 10"></i><i style="height:5%" title="May 4"></i><i style="height:20%" title="June 15"></i><i style="height:29%" title="July 22"></i><i style="height:100%" title="August 76"></i></div><div class="months"><span>22</span><span>10</span><span>4</span><span>15</span><span>22</span><span>76</span></div><blockquote>“wire this into Claude Code in readonly mode”<small>2026-06-14</small></blockquote><blockquote>“creating fine grained pat. what permissions does it need”<small>2026-03-15</small></blockquote><blockquote>“yes, make it approval-gated and fix both dates”<small>2026-08-01</small></blockquote></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Recurring · 37 prompts</div><h3>Resource monitoring & performance</h3></div><div class="score s2">2/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>2026-03-05</b></span><span><b>3.38%</b> sessions</span></div><p class="signatures">tokens · runtime resources · monitoring · logs/traces</p><div class="spark"><i style="height:35%" title="March 8"></i><i style="height:13%" title="April 3"></i><i style="height:0" title="May 0"></i><i style="height:13%" title="June 3"></i><i style="height:0" title="July 0"></i><i style="height:100%" title="August 23"></i></div><div class="months"><span>8</span><span>3</span><span>0</span><span>3</span><span>0</span><span>23</span></div><blockquote>“i just saw an alert abhout high memory usage. what was that”<small>2026-03-10</small></blockquote><blockquote>“live fetch of data from formbuilder is high latency and an overkill. The data barely changes once or twice a day”<small>2026-03-16</small></blockquote><blockquote>“pull and tell me if we discussed any admin screen for me to monitor platform usage and such”<small>2026-06-19</small></blockquote></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Embedded · 632 prompts</div><h3>Session identity & persistence</h3></div><div class="score s3">3/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>2026-03-02</b></span><span><b>69.85%</b> sessions</span></div><p class="signatures">resume · identifiers · history · wrap-up/handoffs</p><div class="spark"><i style="height:87%" title="March 152"></i><i style="height:41%" title="April 72"></i><i style="height:2%" title="May 4"></i><i style="height:42%" title="June 74"></i><i style="height:89%" title="July 155"></i><i style="height:100%" title="August 175"></i></div><div class="months"><span>152</span><span>72</span><span>4</span><span>74</span><span>155</span><span>175</span></div><blockquote>“wrap up sessions in both repositories”<small>2026-03-09</small></blockquote><blockquote>“wrap up session and commit everything”<small>2026-07-28</small></blockquote><blockquote>“/wrap-up-session  and move back to main”<small>2026-08-10</small></blockquote></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Recurring · 73 prompts</div><h3>Layered configuration policy</h3></div><div class="score s2">2/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>2026-03-04</b></span><span><b>8.38%</b> sessions</span></div><p class="signatures">instruction files · settings · precedence · environment</p><div class="spark"><i style="height:95%" title="March 19"></i><i style="height:25%" title="April 5"></i><i style="height:5%" title="May 1"></i><i style="height:50%" title="June 10"></i><i style="height:90%" title="July 18"></i><i style="height:100%" title="August 20"></i></div><div class="months"><span>19</span><span>5</span><span>1</span><span>10</span><span>18</span><span>20</span></div><blockquote>“commit the CLAUDE.md auth-split note too”<small>2026-07-06</small></blockquote><blockquote>“add a positive control rule for canvas checks to CLAUDE.md”<small>2026-08-23</small></blockquote><blockquote>“dont know the difference between putting in claude.md global or auto memory”<small>2026-06-28</small></blockquote></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Trace · 19 prompts</div><h3>Model behavior & inference controls</h3></div><div class="score s1">1/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>2026-03-25</b></span><span><b>1.76%</b> sessions</span></div><p class="signatures">model families · selection · reasoning · plan/fast modes</p><div class="spark"><i style="height:9%" title="March 1"></i><i style="height:0" title="April 0"></i><i style="height:0" title="May 0"></i><i style="height:0" title="June 0"></i><i style="height:64%" title="July 7"></i><i style="height:100%" title="August 11"></i></div><div class="months"><span>1</span><span>0</span><span>0</span><span>0</span><span>7</span><span>11</span></div><blockquote>“rerun workflows with opus or sonnet?  why use fable?”<small>2026-07-14</small></blockquote><blockquote>“Let's do opus for control and sonnet maybe on uh high reasoning for the fleet?”<small>2026-08-15</small></blockquote><blockquote>“why not open another pane for yourself with opus as the model (use dsp alias if needed) and start on the article?”<small>2026-08-05</small></blockquote></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Recurring · 36 prompts</div><h3>Workspace isolation</h3></div><div class="score s2">2/3</div></div><div class="meta"><span>emerged <b>2025-06-02</b></span><span>first use <b>2026-03-12</b></span><span><b>4.12%</b> sessions</span></div><p class="signatures">worktrees · dirty state · working directory · branch isolation</p><div class="spark"><i style="height:18%" title="March 5"></i><i style="height:7%" title="April 2"></i><i style="height:0" title="May 0"></i><i style="height:0" title="June 0"></i><i style="height:4%" title="July 1"></i><i style="height:100%" title="August 28"></i></div><div class="months"><span>5</span><span>2</span><span>0</span><span>0</span><span>1</span><span>28</span></div><blockquote>“just do the markdown cleanup in a separate branch”<small>2026-04-10</small></blockquote><blockquote>“open another session for badm554-online and pick the right cwd”<small>2026-08-23</small></blockquote><blockquote>“do dedicated worktrees, can you drive panes or tabs in herdr here to do this”<small>2026-08-08</small></blockquote></article>
+
+      <article class="card"><div class="card-head"><div><div class="kicker">Recurring · 18 prompts</div><h3>Context as a managed resource</h3></div><div class="score s2">2/3</div></div><div class="meta"><span>emerged <b>2025-04-02†</b></span><span>first use <b>2026-03-04</b></span><span><b>2.50%</b> sessions</span></div><p class="signatures">capacity · compaction · context reset · memory/handoff</p><div class="spark"><i style="height:57%" title="March 4"></i><i style="height:14%" title="April 1"></i><i style="height:0" title="May 0"></i><i style="height:29%" title="June 2"></i><i style="height:57%" title="July 4"></i><i style="height:100%" title="August 7"></i></div><div class="months"><span>4</span><span>1</span><span>0</span><span>2</span><span>4</span><span>7</span></div><blockquote>“coming close to the context limit. what do you recommend”<small>2026-07-31</small></blockquote><blockquote>“create a plan for the rest. and compact”<small>2026-03-04</small></blockquote><blockquote>“lets wrap up and clear context and then start”<small>2026-03-22</small></blockquote></article>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Emergence, then observation</h2><p>The gap is visually honest: the archive opens roughly eleven months after the earliest changelog boundary. Pins show dates, not causation.</p></div>
+    <div class="legend"><span><i></i>changelog emergence</span><span><i class="use"></i>first observed use</span></div>
+    <div class="timeline">
+      <div class="tl-row"><div class="tl-name">External connectivity</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><i class="pin use" style="left:76%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">Extensibility</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><i class="pin use" style="left:76%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">UI navigation</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><i class="pin use" style="left:77%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">Terminal rendering</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><span class="absent-label">absent</span></div></div>
+      <div class="tl-row"><div class="tl-name">Terminal input</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><span class="absent-label">absent</span></div></div>
+      <div class="tl-row"><div class="tl-name">Multi-agent orchestration</div><div class="track"><i class="pin" style="left:5%" data-label="Apr ’25"></i><i class="pin use" style="left:76%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">Permissions</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><i class="pin use" style="left:77%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">Monitoring</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><i class="pin use" style="left:77%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">Session persistence</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><i class="pin use" style="left:76%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">Layered configuration</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><i class="pin use" style="left:77%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">Model controls</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><i class="pin use" style="left:81%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">Workspace isolation</div><div class="track"><i class="pin" style="left:15%" data-label="Jun ’25"></i><i class="pin use" style="left:78%" data-label="Mar ’26"></i></div></div>
+      <div class="tl-row"><div class="tl-name">Managed context</div><div class="track"><i class="pin" style="left:2%" data-label="Apr ’25"></i><i class="pin use" style="left:77%" data-label="Mar ’26"></i></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>The gaps matter</h2><p>Absence and uncertainty are part of the result, not footnotes to be hidden.</p></div>
+    <div class="gaps">
+      <div class="gap"><b>Two tacit surfaces</b><p>Terminal display and input may be used without being discussed. Narrow signatures reduce false positives but cannot observe silent habits.</p></div>
+      <div class="gap"><b>A late archive floor</b><p>All models predate the personal corpus. The 283–357 day gaps are observed lags, not true adoption delays.</p></div>
+      <div class="gap"><b>May is not behavior</b><p>Only four interactive sessions survive the May filter. The raw spike came from imported changelog and headless analysis traffic.</p></div>
+      <div class="gap"><b>Language overlaps</b><p>Slash commands, memory, and configuration cross conceptual borders. Model counts are independent and should not be summed.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Audit trail</h2><p>The companion Markdown report contains the complete signature registry, exact SQL, scoring logic, counts, zero controls, and methodological cautions.</p></div>
+    <div class="note"><b>Reproduce the analysis</b><p>Open <a href="usage-evidence-2026-08-26.md">usage-evidence-2026-08-26.md</a> and see Appendix A. The database was queried read-only. Machine observations and summaries corroborated 11 models; both absent models were also zero there. A raw transcript spot check confirmed the exact context-limit prompt.</p></div>
+  </section>
+
+  <footer>† 2025-04-02 is a lower bound caused by the first public changelog commit seeding 17 versions. Evidence corpus ends 2026-08-26. No external assets or scripts are used on this page.</footer>
+</main>
+</body>
+</html>
