@@ -3,6 +3,7 @@
 import json
 import re
 import time
+from datetime import date, datetime
 from pathlib import Path
 
 import httpx
@@ -17,6 +18,46 @@ INDEX_URLS = [
 WINDOW_START = "2025-02-01"  # Claude Code launch month; lower bound for posts
 # Matches post links like /news/<slug>, /engineering/<slug>, /research/<slug>.
 HREF_RE = re.compile(r'href="(/(?:news|engineering|research)/[a-z0-9][a-z0-9-]+)"')
+# Since ~2026-08 anthropic.com renders the publish date as visible text
+# (`<div class="body-3 agate">Aug 27, 2026</div>`) and no longer ships a
+# `publishedOn` SSR field. Month may be full ("May") or abbreviated ("Aug").
+VISIBLE_DATE_RE = re.compile(r'class="body-3 agate">\s*([A-Z][a-z]+ \d{1,2}, \d{4})\s*<')
+
+
+# Manual date corrections with provenance. Applied in collect() AFTER
+# extraction, so a fixed extractor never silently re-breaks them.
+DATE_OVERRIDES: dict[str, tuple[str, str]] = {
+    "https://www.anthropic.com/engineering/claude-code-best-practices": (
+        "2025-04-18",
+        "URL now 302s to code.claude.com/docs/en/best-practices; the only "
+        "date on that page is a docs `lastModified` (2026-05-14), which the "
+        "v2 collector's bare-date fallback took as the publish date. The "
+        "engineering post was published 2025-04-18; Wayback's earliest "
+        "capture is 2025-04-20 (checked 2026-08-29).",
+    ),
+}
+
+
+def apply_date_overrides(posts: list[dict]) -> list[dict]:
+    """Overwrite `date` for URLs in DATE_OVERRIDES; log each application."""
+    for post in posts:
+        if post["url"] in DATE_OVERRIDES:
+            new_date, why = DATE_OVERRIDES[post["url"]]
+            if post.get("date") != new_date:
+                print(f"DATE OVERRIDE {post['url']}: {post.get('date')} -> "
+                      f"{new_date} ({why[:60]}...)")
+            post["date"] = new_date
+    return posts
+
+
+def parse_visible_date(text: str) -> str | None:
+    """'Aug 27, 2026' / 'May 19, 2026' -> ISO date, else None."""
+    for fmt in ("%b %d, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(text.strip(), fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
 
 
 def extract_post_links(html: str, base: str) -> list[str]:
@@ -53,10 +94,23 @@ def crawl_index(index: str, client: httpx.Client, max_pages: int = 25) -> list[s
     links: dict[str, None] = {}
     for page in range(1, max_pages + 1):
         page_url = index if page == 1 else f"{index}?page={page}"
-        html = cached_call(f"index::{page_url}", lambda u=page_url: fetch(u, client))
+        # Cache key carries the collection date: an undated key served the
+        # May-2026 front page forever, so an Aug refresh found 0 new posts
+        # (found 2026-08-29). Same-day re-runs still hit the cache.
+        key = f"index::{page_url}::{date.today().isoformat()}"
+        html = cached_call(key, lambda u=page_url: fetch(u, client))
         new = [u for u in extract_post_links(html, "https://www.anthropic.com")
                if u not in links]
         if not new:
+            if page == 2:
+                # KNOWN BLIND SPOT (2026-08-29): `?page=2` now returns the same
+                # links as page 1, so only the most recent ~11 /news posts are
+                # discoverable. Posts that scrolled off the index between two
+                # collection runs are never seen (for the Aug-2026 refresh:
+                # anything published 2026-05-20 .. 2026-06-29).
+                print(f"WARNING: {index} does not paginate — only "
+                      f"{len(links)} links visible; older uncached posts are "
+                      "a blind spot")
             break
         for u in new:
             links[u] = None
@@ -71,18 +125,22 @@ def extract_post(html: str) -> dict:
     """
     title_m = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S | re.I)
     title = re.sub(r"<[^>]+>", "", title_m.group(1)).strip() if title_m else ""
-    # Look in order: explicit <time datetime=…>, then Next.js SSR JSON.
-    # anthropic.com rendered pages store the publish date as `publishedOn`
-    # in an escaped-JSON SSR blob (no <time> tag). Prefer that field over
-    # `_createdAt`, which is the CMS creation date and can be months earlier
-    # than the actual publish date.
-    date_m = (
-        re.search(r'datetime="(\d{4}-\d{2}-\d{2})', html)
-        or re.search(r'publishedOn\\?":\s*\\?"(\d{4}-\d{2}-\d{2})', html)
-        or re.search(r'_createdAt\\?":\s*\\?"(\d{4}-\d{2}-\d{2})', html)
-        or re.search(r"(\d{4}-\d{2}-\d{2})", html)
-    )
-    date = date_m.group(1) if date_m else None
+    # Look in order: explicit <time datetime=…>, the visible "Mon D, YYYY"
+    # text (current markup), then the legacy `publishedOn` SSR field (pages
+    # cached before 2026-08). There is deliberately NO `_createdAt` / bare-
+    # date fallback: on current markup those match `siteSettings._createdAt`
+    # (2023-11-03) for every post, and a confident wrong date is worse than
+    # None, which collect() surfaces as a warning.
+    date: str | None = None
+    m = re.search(r'datetime="(\d{4}-\d{2}-\d{2})', html)
+    if m:
+        date = m.group(1)
+    if not date:
+        m = VISIBLE_DATE_RE.search(html)
+        date = parse_visible_date(m.group(1)) if m else None
+    if not date:
+        m = re.search(r'publishedOn\\?":\s*\\?"(\d{4}-\d{2}-\d{2})', html)
+        date = m.group(1) if m else None
     body = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html, flags=re.S | re.I)
     body = re.sub(r"<[^>]+>", " ", body)
     body = re.sub(r"\s+", " ", body).strip()
@@ -96,12 +154,18 @@ def collect(out: Path = Path("data/raw/blogs.json")) -> Path:
     are surfaced as a warning and KEPT (per spec: flag, never silently drop).
     """
     posts: list[dict] = []
+    out = Path(out)
+    # The index only exposes recent posts (see crawl_index); every URL from a
+    # previous collection must be carried forward or the corpus silently
+    # shrinks to whatever is on the front page today.
+    previous = [p["url"] for p in json.loads(out.read_text())] if out.exists() else []
     with httpx.Client() as client:
         links: list[str] = []
         for index in INDEX_URLS:
             links += crawl_index(index, client)
-        links = list(dict.fromkeys(links))
-        print(f"Found {len(links)} post links")
+        links = list(dict.fromkeys(links + previous))
+        print(f"Found {len(links)} post links "
+              f"({len(links) - len(previous)} not in previous collection)")
         for url in links:
             html = cached_call(f"post::{url}", lambda u=url: fetch(u, client))
             post = extract_post(html)
@@ -109,13 +173,13 @@ def collect(out: Path = Path("data/raw/blogs.json")) -> Path:
             post = render_post(post)  # A2: overlay headless-rendered date/body
             posts.append(post)
 
+    posts = apply_date_overrides(posts)
     missing = [p["url"] for p in posts if not p["date"]]
     if missing:
         print(f"WARNING: {len(missing)} posts have no parsed date (kept): {missing}")
     kept = [p for p in posts if p["date"] is None or p["date"] >= WINDOW_START]
     print(f"Kept {len(kept)}/{len(posts)} posts in window (>= {WINDOW_START})")
 
-    out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(kept, indent=2))
     print(f"Wrote {len(kept)} posts to {out}")

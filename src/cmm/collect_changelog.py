@@ -17,6 +17,30 @@ _RULES = [
 ]
 
 
+def version_key(version: str) -> tuple[int, ...]:
+    """Numeric sort key for a semver-ish string ("2.1.150" -> (2, 1, 150)).
+
+    Versions MUST be compared with this key, never as strings: lexically
+    "2.1.98" > "2.1.150", which mis-reported the corpus ceiling as v2.1.98
+    (real: v2.1.150) on 2026-08-29. Any non-numeric suffix (e.g. "-beta")
+    sorts after the bare number.
+    """
+    core, _, suffix = version.partition("-")
+    nums = tuple(int(x) for x in core.split(".") if x.isdigit())
+    return nums + ((1,) if suffix else (0,))
+
+
+def sort_versions(versions, descending: bool = False) -> list[str]:
+    """Sort version strings numerically (see `version_key`)."""
+    return sorted(set(versions), key=version_key, reverse=descending)
+
+
+def latest_version(versions) -> str | None:
+    """Numerically greatest version, or None if empty."""
+    vs = sort_versions(versions)
+    return vs[-1] if vs else None
+
+
 def classify_change(text: str) -> str:
     """Map a changelog entry to a change_type via word-boundary keyword rules."""
     low = text.lower()
@@ -73,6 +97,11 @@ def clone_or_update_repo(dest: Path) -> Path:
             subprocess.run(["git", "-C", str(dest), "fetch", "--unshallow"],
                            check=True)
         subprocess.run(["git", "-C", str(dest), "fetch", "--all"], check=True)
+        # `fetch` updates origin/main but never moves the working tree, so
+        # without this checkout a re-collect re-reads the OLD CHANGELOG.md
+        # (found 2026-08-29: tree was 3 months behind the fetched remote).
+        subprocess.run(["git", "-C", str(dest), "checkout", "-q", "--force",
+                        "--detach", "origin/main"], check=True)
     else:
         subprocess.run(["git", "clone", REPO_URL, str(dest)], check=True)
     return dest
@@ -145,7 +174,7 @@ def collect(repo_dir: Path = Path("data/raw/claude-code"),
     entries = parse_changelog((repo / "CHANGELOG.md").read_text())
     dates = version_dates(repo)
     assert_no_horizon_clamp(dates, initial_batch_date=_first_commit_date(repo))
-    undated = sorted({e["version"] for e in entries} - set(dates))
+    undated = sort_versions({e["version"] for e in entries} - set(dates))
     if undated:
         print(f"WARNING: {len(undated)} versions have no git date: {undated}")
     for e in entries:
@@ -154,7 +183,10 @@ def collect(repo_dir: Path = Path("data/raw/claude-code"),
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     df.write_parquet(out)
-    print(f"Wrote {len(df)} changelog entries to {out}")
+    versions = sort_versions(df["version"].to_list())
+    print(f"Wrote {len(df)} changelog entries ({len(versions)} versions, "
+          f"{versions[0]} .. {versions[-1]}, latest date {df['date'].max()}) "
+          f"to {out}")
     return out
 
 

@@ -55,3 +55,16 @@ def test_assert_no_horizon_clamp_raises_when_many_versions_share_oldest_date():
     import pytest
     with pytest.raises(ValueError, match="clone horizon"):
         assert_no_horizon_clamp(dates)
+
+
+from cmm.collect_changelog import version_key, sort_versions, latest_version
+
+
+def test_version_key_sorts_numerically_not_lexically():
+    # The string-sort defect: "2.1.98" > "2.1.150" lexically.
+    assert version_key("2.1.150") > version_key("2.1.98")
+    assert sort_versions(["2.1.98", "2.1.150", "2.1.101", "0.2.9"]) == \
+        ["0.2.9", "2.1.98", "2.1.101", "2.1.150"]
+    assert latest_version(["2.1.98", "2.1.150", "2.1.101"]) == "2.1.150"
+    assert latest_version([]) is None
+    assert version_key("1.0.0-beta") > version_key("1.0.0")
