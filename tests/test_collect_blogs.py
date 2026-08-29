@@ -56,3 +56,9 @@ def test_date_override_corrects_best_practices_post():
                                   {"url": "https://x/other", "date": "2026-01-01"}])
     assert posts[0]["date"] == "2025-04-18"
     assert posts[1]["date"] == "2026-01-01"
+
+
+def test_extract_post_engineering_markup_reads_date_after_h1_only():
+    html = ('<div class="card">Jan 2, 2024</div><h1>How we contain Claude</h1>'
+            '<p class="meta">May 25, 2026</p><p>body</p>')
+    assert extract_post(html)["date"] == "2026-05-25"

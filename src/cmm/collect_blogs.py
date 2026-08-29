@@ -22,6 +22,10 @@ HREF_RE = re.compile(r'href="(/(?:news|engineering|research)/[a-z0-9][a-z0-9-]+)
 # (`<div class="body-3 agate">Aug 27, 2026</div>`) and no longer ships a
 # `publishedOn` SSR field. Month may be full ("May") or abbreviated ("Aug").
 VISIBLE_DATE_RE = re.compile(r'class="body-3 agate">\s*([A-Z][a-z]+ \d{1,2}, \d{4})\s*<')
+# /engineering posts render the same visible date without the agate class;
+# take the first "Mon D, YYYY" text node only after the h1 (so a related-post
+# card above the title cannot win). Control: how-we-contain-claude -> 2026-05-25.
+ANY_VISIBLE_DATE_RE = re.compile(r'>\s*([A-Z][a-z]{2,8} \d{1,2}, \d{4})\s*<')
 
 
 # Manual date corrections with provenance. Applied in collect() AFTER
@@ -141,6 +145,9 @@ def extract_post(html: str) -> dict:
     if not date:
         m = re.search(r'publishedOn\\?":\s*\\?"(\d{4}-\d{2}-\d{2})', html)
         date = m.group(1) if m else None
+    if not date and title_m:
+        m = ANY_VISIBLE_DATE_RE.search(html, title_m.end())
+        date = parse_visible_date(m.group(1)) if m else None
     body = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html, flags=re.S | re.I)
     body = re.sub(r"<[^>]+>", " ", body)
     body = re.sub(r"\s+", " ", body).strip()
