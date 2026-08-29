@@ -36,6 +36,14 @@ All network and LLM calls are cached in `data/cache/`.
 
 ## Deliverable
 
+Run the public notebook without cloning anything else (one command; it
+fetches the data from this repo's `main` branch at load):
+
+```bash
+uvx --with polars --with altair --with httpx --with pandas --with pyarrow \
+    marimo run notebooks/analysis_public.py
+```
+
 `notebooks/analysis.py` — a marimo notebook: feature-volume / churn / blog-coverage
 / mental-model-emergence charts, an interactive cluster explorer, a themes
 reference table, and a RAG chat panel grounded in the corpus.
