@@ -53,3 +53,13 @@ Source of every number: `data/processed/*` as of commit on 2026-08-29;
 - the buried 37.8% (now 40.5% / 45.2%) stat — the churn shift may be the
   stronger lede now
 - concrete "try it on Cursor / Linear" examples
+
+## Status (2026-08-29, later the same day)
+
+Applied to `2026-05-27-the-tool-as-teacher.md` and its HTML: every row in the
+"Numbers that changed" table, the methodology sentence (as a subsection),
+and the three May P2s (temple-wall echo trimmed, coverage stat now leads its
+paragraph, Cursor/Linear examples added). Second editorial review: 0 P0,
+5 P1 (all applied: closing returns to August; churn and narration claims
+hedged to the three-month window; refresh caveat moved up; item-count
+arithmetic removed). Byline still says "Draft"; drop before publishing.
