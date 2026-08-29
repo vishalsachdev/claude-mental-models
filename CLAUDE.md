@@ -37,16 +37,16 @@ escalation trigger fired). Notebook prose, findings, methodology §5, README
 updated; WASM build rebuilt; article untouched, stale claims listed in
 `articles/2026-08-29-refresh-notes.md`.
 
+**Pushed to main + live on Pages 2026-08-29** (`d1e48a7`). The article draft
+is updated to the refreshed numbers (second editorial review applied) but
+**not published to any platform**.
+
 **Open follow-ups (next session, in priority):**
-1. **Push** the refresh branch `refresh-2026-08` → main (data/processed +
-   docs are one atomic commit; the live WASM notebook reads parquet from
-   `main` at load time, so pushing IS deploying).
-2. **Rewrite + publish the article** from the refresh notes (mechanical) —
+1. **Publish the article** — drop "Draft" from the byline, then
    `/publish-to-substack`, `/publish-to-linkedin`, `/publish-to-twitter`.
-   The churn shift (11.8% → 27.4%) may be the stronger lede.
-3. **Manual audit** — `data/processed/audit_sample.csv` (40 May rows, blank
+2. **Manual audit** — `data/processed/audit_sample.csv` (40 May rows, blank
    `agree`); record per-stratum agreement in `findings.md`.
-4. Next refresh: watch the two triggers; if residual >5% or one theme >40%,
+3. Next refresh: watch the two triggers; if residual >5% or one theme >40%,
    that is choice (b) — full re-derivation.
 
 ## Roadmap
@@ -85,7 +85,7 @@ updated; WASM build rebuilt; article untouched, stale claims listed in
 
 ## Session Log
 
-### 2026-08-29 — incremental refresh (branch `refresh-2026-08`, not pushed)
+### 2026-08-29 — incremental refresh (merged ff to main, pushed, branch deleted)
 - Feasibility first (read-only): delta was 84 versions / 1,862 entries
   (v2.1.152–2.1.251) + 12 posts; full re-derivation would invalidate every
   bottom-up artifact, so chose (a) with escalation triggers.
@@ -101,6 +101,8 @@ updated; WASM build rebuilt; article untouched, stale claims listed in
 - Findings that moved: Aug 2026 = 731 entries (record); removal rate
   11.8% → 27.4% post-May; Multi-Agent Orchestration 6th → 2nd by size.
 - Codex session 2026-08-26 (`5ef0614`) had already delivered Phase 3.
+- Article updated to the refresh (`d1e48a7`): churn-shift lede, tripwire
+  subsection, review P1s applied, no em-dashes. Not published.
 
 ### 2026-05-27 / 05-28
 - Reframed the deliverable around **"the tool guides users to build mental
