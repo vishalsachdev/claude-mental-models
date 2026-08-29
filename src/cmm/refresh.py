@@ -83,7 +83,7 @@ def _entry_key(theme_hash: str, entry_id: str, text: str) -> str:
 
 def assign_new(items: pl.DataFrame, anchor: pl.DataFrame,
                cache_dir: Path = DEFAULT_CACHE,
-               assign_batch=_assign_batch, max_workers: int = 12) -> pl.DataFrame:
+               assign_batch=None, max_workers: int = 12) -> pl.DataFrame:
     """Assign `items` to the fixed anchor set; per-entry content-keyed cache.
 
     Only cache misses are batched (sorted by entry_id, BATCH_SIZE each) and
@@ -92,6 +92,8 @@ def assign_new(items: pl.DataFrame, anchor: pl.DataFrame,
     batches fall. Returns entry_id, source, date, themes (unlabelled: [] for
     no theme).
     """
+    if assign_batch is None:           # resolved at call time (patchable)
+        assign_batch = _assign_batch
     block = theme_block(anchor)
     thash = hashlib.sha256(block.encode()).hexdigest()[:12]
     valid = set(anchor["name"].to_list())
@@ -189,14 +191,34 @@ def run(processed: Path = PROCESSED, force: bool = False,
     anchor = pl.read_parquet(processed / "anchor_themes.parquet")
     themes = pl.read_parquet(processed / "themes.parquet")
 
-    prior_max = latest_version(emb.filter(pl.col("source") == "changelog")["version"])
+    prior_max = latest_version(
+        emb.filter((pl.col("source") == "changelog")
+                   & (pl.col("cluster_label") != UNCLUSTERED))["version"])
     items = corpus_items(changelog, blogs)
+    # Entries edited/removed upstream keep their old id in codes/embeddings;
+    # drop those orphans so every coded row is a live corpus item.
+    live = items["entry_id"].implode()
+    orphans = codes.filter(~pl.col("entry_id").is_in(live))
+    if orphans.height:
+        print(f"refresh: dropping {orphans.height} orphan row(s) no longer in "
+              f"the corpus: {orphans['entry_id'].to_list()[:5]}")
+        codes = codes.filter(pl.col("entry_id").is_in(live))
+        emb = emb.filter(pl.col("entry_id").is_in(live))
     fresh = new_items(items, codes)
     print(f"refresh: corpus {items.height} items, {fresh.height} new "
           f"(prior ceiling v{prior_max}, now v{latest_version(changelog['version'])})")
 
     new_codes = assign_new(fresh, anchor, cache_dir=cache_dir)
-    report = refresh_report(new_codes, anchor, changelog, prior_max)
+    if fresh.height:
+        report_subject = new_codes
+    else:
+        # No-op re-run: report on everything added since the cluster
+        # solution, so refresh_report.json keeps describing the last delta.
+        since = emb.filter(pl.col("cluster_label") == UNCLUSTERED)["entry_id"].implode()
+        report_subject = codes.filter(pl.col("entry_id").is_in(since)).with_columns(
+            pl.when(pl.col("themes") == [MAINTENANCE_LABEL]).then(pl.lit([], dtype=pl.List(pl.Utf8)))
+            .otherwise(pl.col("themes")).alias("themes"))
+    report = refresh_report(report_subject, anchor, changelog, prior_max)
     (processed / "refresh_report.json").write_text(json.dumps(report, indent=2))
     print(json.dumps(report["triggers"], indent=2))
     if any_trigger(report) and not force:

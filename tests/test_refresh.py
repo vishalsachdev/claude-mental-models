@@ -100,3 +100,42 @@ def test_corpus_items_matches_embed_cluster_shape():
     assert out["entry_id"].to_list() == ["x", "u1"]     # u2 not cc_relevant
     assert len(out["text"][1]) == len("T. ") + 800
     assert "- A: a things" in theme_block(ANCHOR)
+
+
+def test_run_drops_orphans_and_is_idempotent(tmp_path, monkeypatch):
+    import json as _json
+    from cmm import refresh as R
+    monkeypatch.setattr(R, "embed_texts", lambda texts: [[0.0, 1.0] for _ in texts])
+    monkeypatch.setattr(R, "_assign_batch", lambda batch, block: [
+        {"entry_id": r["entry_id"], "themes": ["ABC"[i % 3]]} for i, r in enumerate(batch)])
+    p = tmp_path / "processed"; p.mkdir()
+    ids = [f"n{i}" for i in range(1, 7)]
+    pl.DataFrame({"id": ids, "text": [f"t{i}" for i in ids], "date": ["2026-06-01"] * 6,
+                  "version": ["2.1.200"] * 6, "change_type": ["add"] * 6}).write_parquet(p / "changelog.parquet")
+    pl.DataFrame({"url": ["u"], "title": ["T"], "body": ["b"], "date": ["2026-06-02"],
+                  "cc_relevant": [True], "cc_confidence": [0.9]}).write_parquet(p / "blogs.parquet")
+    pl.DataFrame({"entry_id": ["old", "n1"], "text": ["o", "t1"], "source": ["changelog"] * 2,
+                  "date": ["2026-01-01", "2026-06-01"], "version": ["2.1.1", "2.1.200"],
+                  "cluster_label": [0, 0], "umap_x": [0.0, 0.0], "umap_y": [0.0, 0.0],
+                  "vector": [[0.0, 1.0], [0.0, 1.0]]}).write_parquet(p / "embeddings.parquet")
+    pl.DataFrame({"entry_id": ["old", "n1"], "source": ["changelog"] * 2,
+                  "date": ["2026-01-01", "2026-06-01"], "themes": [["A"], ["B"]]},
+                 schema_overrides={"themes": pl.List(pl.Utf8)}).write_parquet(p / "codes.parquet")
+    three = pl.DataFrame({"name": ["A", "B", "C"], "description": ["a", "b", "c"]})
+    three.write_parquet(p / "anchor_themes.parquet")
+    three.with_columns(pl.lit("[]").alias("description_flags"), pl.lit(True).alias("corroborated_top_down"),
+                       pl.lit(True).alias("corroborated_independent"), pl.lit("high").alias("confidence_tier"),
+                       pl.lit("{}").alias("corroboration_notes"),
+                       pl.Series("source_clusters", [[0], [1], [2]])).write_parquet(p / "themes.parquet")
+    (p / "coding_audit.json").write_text("{}"); (p / "run_metrics.json").write_text("{}")
+    r = R.run(processed=p, cache_dir=tmp_path / "cache")
+    codes = pl.read_parquet(p / "codes.parquet")
+    assert set(codes["entry_id"]) == set(ids) | {"u"}           # 'old' orphan dropped
+    assert r["new_items"] == 6 and r["new_items_by_source"] == {"changelog": 5, "blog": 1}
+    assert not R.any_trigger(r)
+    emb = pl.read_parquet(p / "embeddings.parquet")
+    assert emb.filter(pl.col("entry_id") == "n2")["cluster_label"][0] == R.UNCLUSTERED
+    r2 = R.run(processed=p, cache_dir=tmp_path / "cache")            # idempotent
+    # a no-op re-run keeps reporting the last delta (6 rows since the cluster solution)
+    assert r2["new_items"] == 6 and pl.read_parquet(p / "codes.parquet").height == 7
+    assert _json.loads((p / "run_metrics.json").read_text())["max_version"] == "2.1.200"
