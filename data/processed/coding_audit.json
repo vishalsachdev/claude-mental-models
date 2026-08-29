@@ -1,8 +1,8 @@
 {
   "n_themes": 13,
-  "n_entries": 3079,
-  "residual_count": 47,
-  "residual_fraction": 0.015,
+  "n_entries": 4946,
+  "residual_count": 71,
+  "residual_fraction": 0.014,
   "confidence_tiers": {
     "bottom_up_only": 3,
     "high": 7,
@@ -10,5 +10,7 @@
   },
   "evidence_tiers": {
     "core": 13
-  }
+  },
+  "refreshed_on": "2026-08-29",
+  "cluster_solution_date": "2026-05-23"
 }

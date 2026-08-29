@@ -44,16 +44,19 @@ Treat the deliverable as two layers with very different reliability:
 
 ## 2. The pipeline, stage by stage
 
-1. **Corpus.** Claude Code's `CHANGELOG.md` — 3,057 entries across 296 releases,
-   each dated by the git commit that introduced its version heading. Plus 33
-   Anthropic blog posts scraped from anthropic.com (all 33 dated — see §3.4
-   on A1).
+1. **Corpus.** Claude Code's `CHANGELOG.md` — 4,919 entries across 380 releases
+   (v0.2.21 – v2.1.251, 2025-04-02 – 2026-08-28), each dated by the git commit
+   that introduced its version heading. Plus 45 Anthropic blog posts scraped
+   from anthropic.com (44 dated — see §3.4 on A1 and §5 on the refresh). The
+   theme derivation (stages 4–8) ran on the corpus as of 2026-05-23: 3,057
+   entries / 296 releases / 33 posts; the rest was added by the incremental
+   refresh in §5.
 2. **Change-type tagging.** Each changelog entry labelled add / change / fix /
    deprecate / remove by word-boundary keyword rules.
 3. **Blog relevance & join.** An LLM tags each blog for Claude Code relevance;
    blogs are joined to changelog versions by date proximity (±14 days) plus
    shared feature words.
-4. **Embedding spine.** All ~3,000 items embedded with a local
+4. **Embedding spine.** All 3,079 items (as of 2026-05-23) embedded with a local
    `all-mpnet-base-v2` sentence-transformer (a higher-capacity replacement
    for the v1 MiniLM model — see rebuild §A3); HDBSCAN over a **12-D** UMAP
    reduction (loosened from v1's 5-D) with `min_cluster_size=15`,
@@ -150,7 +153,8 @@ tells you whether the *embedding evidence* in the corpus tracks it.
 
 ### 3.4 Labelled residual
 
-47 of 3,079 entries (1.5%) are unassigned by B4. These are labelled
+47 of 3,079 entries (1.5%) were unassigned by B4 on the May corpus (72 of 4,946,
+1.5%, after the August refresh). These are labelled
 **Maintenance / no conceptual shift** rather than discarded — almost all are
 small bug fixes or version bumps that demanded no new user competency. The
 v1 residual was 33.6% of entries; the drop reflects that multi-label
@@ -192,9 +196,12 @@ independent derivation; corroboration between B1 and B3 is the rebuild's
 strongest independence claim, but the analysis is not fully independent of
 its subject.
 
-**The blog corpus is still thin.** 33 posts (up from 32 in v1, all now dated),
-of which ~22 are Claude Code-relevant. Blog-coverage figures remain
-indicative, not statistically robust.
+**The blog corpus is still thin.** 45 posts (33 at derivation time; 44 dated),
+of which 27 are Claude Code-relevant. Blog-coverage figures remain
+indicative, not statistically robust. anthropic.com's index page stopped
+paginating by 2026-08, so a refresh only sees the ~11 most recent /news
+posts; anything that scrolled off between collections (2026-05-20 to
+2026-06-29 for the August refresh) is a known blind spot.
 
 ---
 
@@ -221,3 +228,52 @@ indicative, not statistically robust.
 
 *Reproduce or re-derive anything: see `README.md` and the spec/plan in
 `docs/superpowers/`.*
+
+---
+
+## 5. Incremental refresh (2026-08-29)
+
+The corpus was extended from v2.1.150 (2026-05-23) to v2.1.251 (2026-08-28)
+without re-deriving the theme model — choice (a) of the three options
+considered (incremental refresh / full re-derivation / no update).
+
+**What was held fixed.** `anchor_themes.parquet` (the 13 B1.5 anchors and
+their descriptions), the confidence tiers, the 43-cluster HDBSCAN/UMAP
+solution, `coherence.parquet`, `mini_themes.parquet`, and the independent
+derivation. Every one of those is a property of the 2026-05-23 corpus and is
+labelled as such in the notebook.
+
+**What was extended.** `cmm.refresh` embeds the new items with the same
+sentence-transformer (no cluster refit — they carry `cluster_label = -2`),
+assigns them to the fixed anchors with the same B4 assignment prompt, caches
+each assignment under a content key (`assign::<theme-set hash>::<entry_id>::
+<text hash>`) so a later refresh never re-bills an entry, re-tallies
+`entry_count` / `first_seen_date` / `supporting_blog_urls` in
+`themes.parquet`, and re-runs the blog tagging and ±14-day join. Theme
+descriptions were not regenerated. The persona lens was re-run and hit its
+cache entirely (theme names and descriptions unchanged).
+
+**Escalation triggers.** Two conditions would have forced a full
+re-derivation (choice (b)): new-item residual above 5%, or any single theme
+absorbing more than 40% of new items. Observed: 1,868 new items (1,863
+changelog, 5 blog), residual **1.34%** (25 items), largest theme share
+**19.0%** (Multi-Agent Orchestration). Neither fired. `refresh_report.json`
+records both.
+
+**What this does and does not license.** Descriptive numbers (pace, churn,
+narration, theme entry counts) are now current through v2.1.251. The theme
+*names and boundaries* are a May-2026 reading extended forward: a competency
+that only became visible after May would surface as residual growth or as one
+theme swallowing the delta, and neither happened — but the 5%/40% thresholds
+are judgment calls, not derived quantities. The audit sample
+(`audit_sample.csv`) is still the 40-row May draw; it was not regenerated
+because its stratification (theme tier × coherence) is a property of the
+frozen cluster solution.
+
+**Collector defects found and fixed during the refresh** (each with a
+positive control; see `docs/findings.md` → Method corrections): the changelog
+collector fetched but never checked out (re-collect returned the May file);
+the blog date extractor matched a site-settings `_createdAt` for every post
+after anthropic.com dropped its `publishedOn` field; the index-page cache key
+carried no date, so the crawl served the May front page forever; and versions
+had been compared as strings (`"2.1.98" > "2.1.150"`).

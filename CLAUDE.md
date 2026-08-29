@@ -1,13 +1,14 @@
 # CLAUDE.md — claude-mental-models
 
 Research project: analyzes Claude Code's release history (changelog + Anthropic
-blogs) as a proxy for the mental models a developer had to evolve over ~14
-months. `@research` project — pin versions, `uv` venv.
+blogs) as a proxy for the mental models a developer had to evolve over ~17
+months (themes derived at month 14, corpus extended incrementally). `@research` project — pin versions, `uv` venv.
 
 ## Stack & commands
 
 - Python 3.13 via `uv`. Package: `src/cmm/`. Notebook: `notebooks/analysis.py` (marimo, full/local — has RAG chat).
 - Run the pipeline: `uv run python -m cmm.{collect_changelog,collect_blogs,tag_and_join,embed_cluster,thematic_coding}`
+- **Incremental refresh (themes fixed):** `uv run python -m cmm.{collect_changelog,collect_blogs,tag_and_join,refresh}` — `refresh` assigns only new entries, writes `data/processed/refresh_report.json`, and refuses to write tables if new-item residual >5% or one theme >40% of new items (that means choice (b), full re-derivation — a human call).
 - View local deliverable: `uv run marimo run notebooks/analysis.py`
 - Tests: `uv run pytest -q`
 
@@ -29,22 +30,24 @@ months. `@research` project — pin versions, `uv` venv.
 
 ## Current Focus
 
-**Rebuild shipped, notebook published, article drafted.** The triangulated
-analysis (13 anchor themes, 7 high / 3 provisional / 3 bottom-up-only,
-coherence median 0.30) is merged; the persona-aware notebook is **live on
-GitHub Pages** as a WASM build; a 1,304-word Hybrid Builder article
-(`articles/2026-05-27-the-tool-as-teacher.md`) is written, link-verified, and
-editorially reviewed (3 P1s fixed, 4 P2s left for the user).
+**Corpus refreshed to v2.1.251 (2026-08-29) with the May theme model held
+fixed** — choice (a). 4,919 entries / 380 releases / 45 posts; 1,868 new items
+assigned to the 13 anchors (residual 1.34%, top theme 19.0% — neither
+escalation trigger fired). Notebook prose, findings, methodology §5, README
+updated; WASM build rebuilt; article untouched, stale claims listed in
+`articles/2026-08-29-refresh-notes.md`.
 
 **Open follow-ups (next session, in priority):**
-1. **Publish the article to platforms** — `/publish-to-substack`,
-   `/publish-to-linkedin`, `/publish-to-twitter`. Optionally cover images
-   (RSA-Animate sketches) + a session-transcript gist first. 4 P2 polish
-   notes from the editorial review are still open (temple-wall echo,
-   buried 37.8% stat, concrete "try it on Cursor/Linear" examples).
-2. **Manual audit** — `data/processed/audit_sample.csv` (40 rows, blank
-   `agree` column), record per-stratum agreement rates in `findings.md`.
-3. Phase 3 personal-artifact overlay (still deferred).
+1. **Push** the refresh branch `refresh-2026-08` → main (data/processed +
+   docs are one atomic commit; the live WASM notebook reads parquet from
+   `main` at load time, so pushing IS deploying).
+2. **Rewrite + publish the article** from the refresh notes (mechanical) —
+   `/publish-to-substack`, `/publish-to-linkedin`, `/publish-to-twitter`.
+   The churn shift (11.8% → 27.4%) may be the stronger lede.
+3. **Manual audit** — `data/processed/audit_sample.csv` (40 May rows, blank
+   `agree`); record per-stratum agreement in `findings.md`.
+4. Next refresh: watch the two triggers; if residual >5% or one theme >40%,
+   that is choice (b) — full re-derivation.
 
 ## Roadmap
 
@@ -53,10 +56,13 @@ editorially reviewed (3 P1s fixed, 4 P2s left for the user).
 - [x] Phase 2b: publish notebook publicly — GitHub Pages WASM build, live at
       `vishalsachdev.github.io/claude-mental-models/` (2026-05-27).
 - [x] Phase 2d: write the Hybrid Builder article (drafted 2026-05-27).
-- [ ] Phase 2e: publish article to Substack / LinkedIn / Twitter.
+- [x] Phase 2f: incremental corpus refresh to v2.1.251 (`cmm.refresh`,
+      2026-08-29) — themes fixed, triggers clean.
+- [ ] Phase 2e: publish article to Substack / LinkedIn / Twitter (rewrite
+      from `articles/2026-08-29-refresh-notes.md` first).
 - [ ] Phase 2c: manual audit (40 stratified rows → agreement rates).
-- [ ] Phase 3 (deferred): overlay ~100 personal artifacts as a parallel
-      adoption timeline (`personal_artifact` table reserved in the spec).
+- [x] Phase 3 (Codex, 2026-08-26): personal-usage overlay —
+      `docs/usage-evidence-2026-08-26.{md,html}` (11 of 13 models evidenced).
 
 ## Gotchas (rebuild-era)
 
@@ -78,6 +84,23 @@ editorially reviewed (3 P1s fixed, 4 P2s left for the user).
   on load — rename one.
 
 ## Session Log
+
+### 2026-08-29 — incremental refresh (branch `refresh-2026-08`, not pushed)
+- Feasibility first (read-only): delta was 84 versions / 1,862 entries
+  (v2.1.152–2.1.251) + 12 posts; full re-derivation would invalidate every
+  bottom-up artifact, so chose (a) with escalation triggers.
+- Fixed three collector defects (fetch-without-checkout; blog date extractor
+  returning `siteSettings._createdAt` for every post; undated index cache
+  key) and the string version sort — each with a positive control.
+- Method corrections logged in `findings.md`: best-practices post re-dated
+  2026-05-14 → 2025-04-18 (narration 37.8% → 38.9/39.2%); change-type table
+  had not summed to 3,057; one orphan row from an upstream edit.
+- New `cmm.refresh`: fixed anchors, per-entry content-keyed assignment cache,
+  clusters/coherence frozen as the 2026-05-23 solution (`cluster_label=-2`
+  for new rows), `refresh_report.json` with triggers.
+- Findings that moved: Aug 2026 = 731 entries (record); removal rate
+  11.8% → 27.4% post-May; Multi-Agent Orchestration 6th → 2nd by size.
+- Codex session 2026-08-26 (`5ef0614`) had already delivered Phase 3.
 
 ### 2026-05-27 / 05-28
 - Reframed the deliverable around **"the tool guides users to build mental

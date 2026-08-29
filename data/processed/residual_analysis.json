@@ -1,9 +1,9 @@
 {
-  "residual_count": 47,
-  "residual_fraction": 0.015,
+  "residual_count": 71,
+  "residual_fraction": 0.014,
   "by_source": {
-    "changelog": 41,
-    "blog": 6
+    "changelog": 64,
+    "blog": 7
   },
   "examples": [
     "Internal infrastructure improvements (no user-facing changes)",
@@ -18,5 +18,6 @@
     "Fixed Windows version cleanup not protecting the active version's rollback copy",
     "`/buddy` is here for April 1st \u2014 hatch a small creature that watches you code",
     "Fixed `/plugin` uninstall dialog: pressing `n` now correctly uninstalls the plugin while preserving its data directory"
-  ]
+  ],
+  "note": "Corpus through v2.1.251; themes fixed at the 2026-05-23 derivation (incremental refresh)."
 }

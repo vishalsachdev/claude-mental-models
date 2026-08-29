@@ -1,5 +1,9 @@
 {
-  "blog_total": 33,
-  "blog_undated_count": 0,
-  "cluster_count": 43
+  "blog_total": 45,
+  "blog_undated_count": 1,
+  "cluster_count": 43,
+  "changelog_entries": 4919,
+  "changelog_versions": 380,
+  "max_version": "2.1.251",
+  "cluster_solution_date": "2026-05-23"
 }

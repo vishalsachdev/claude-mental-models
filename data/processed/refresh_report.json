@@ -1,0 +1,78 @@
+{
+  "refreshed_on": "2026-08-29",
+  "cluster_solution_date": "2026-05-23",
+  "prior_max_version": "2.1.150",
+  "new_max_version": "2.1.251",
+  "new_items": 1868,
+  "new_items_by_source": {
+    "changelog": 1863,
+    "blog": 5
+  },
+  "residual_count": 25,
+  "residual_fraction": 0.0134,
+  "per_theme": {
+    "Multi-Agent Orchestration & Task Lifecycle": {
+      "count": 354,
+      "share_of_new_items": 0.19
+    },
+    "External Connectivity: MCP Servers, Providers & Network Reliability": {
+      "count": 282,
+      "share_of_new_items": 0.151
+    },
+    "Permission & Security Boundaries": {
+      "count": 255,
+      "share_of_new_items": 0.137
+    },
+    "Session Identity & Persistence": {
+      "count": 215,
+      "share_of_new_items": 0.115
+    },
+    "Terminal Rendering & Display": {
+      "count": 194,
+      "share_of_new_items": 0.104
+    },
+    "UI Navigation & Command Surfaces": {
+      "count": 190,
+      "share_of_new_items": 0.102
+    },
+    "Extensibility Ecosystem: Plugins, Skills & Hooks": {
+      "count": 166,
+      "share_of_new_items": 0.089
+    },
+    "Resource Monitoring, Observability & Performance": {
+      "count": 166,
+      "share_of_new_items": 0.089
+    },
+    "Configuration as a Layered Policy Hierarchy": {
+      "count": 156,
+      "share_of_new_items": 0.084
+    },
+    "Terminal Input & Interaction": {
+      "count": 152,
+      "share_of_new_items": 0.081
+    },
+    "Model Behavior & Inference Controls": {
+      "count": 127,
+      "share_of_new_items": 0.068
+    },
+    "Workspace Isolation & File-System Operations": {
+      "count": 104,
+      "share_of_new_items": 0.056
+    },
+    "Context Window as a Finite, Managed Resource": {
+      "count": 49,
+      "share_of_new_items": 0.026
+    }
+  },
+  "triggers": {
+    "residual_over_5pct": {
+      "fired": false,
+      "value": 0.0134
+    },
+    "theme_over_40pct": {
+      "fired": false,
+      "theme": "Multi-Agent Orchestration & Task Lifecycle",
+      "value": 0.1895
+    }
+  }
+}

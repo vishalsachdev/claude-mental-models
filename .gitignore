@@ -7,3 +7,4 @@ data/cache/*
 !data/cache/.gitkeep
 .marimo.toml
 notebooks/__marimo__/
+docs/CLAUDE.md

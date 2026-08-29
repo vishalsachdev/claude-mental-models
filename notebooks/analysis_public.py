@@ -68,8 +68,9 @@ def _(pl):
     persona_relevance = load_parquet("persona_relevance.parquet")
     mini_themes = load_parquet("mini_themes.parquet")
     residual = load_json("residual_analysis.json")
+    refresh_report = load_json("refresh_report.json")
     return (changelog, blogs, joins, embeddings, themes, codes,
-            coherence, persona_relevance, mini_themes, residual)
+            coherence, persona_relevance, mini_themes, residual, refresh_report)
 
 
 @app.cell
@@ -127,8 +128,9 @@ reliability:
 
 The interpretive layer is **triangulated**, not a single LLM pass:
 
-1. **Bottom-up (B1).** Embed all 3,079 corpus items with `all-mpnet-base-v2`;
-   cluster with HDBSCAN over a 12-D UMAP reduction → **43 embedding clusters**.
+1. **Bottom-up (B1).** Embed the 3,079 corpus items available on
+   2026-05-23 with `all-mpnet-base-v2`; cluster with HDBSCAN over a 12-D UMAP
+   reduction → **43 embedding clusters**.
    For each cluster, ask Claude what *latent user assumption* its items share.
    → 43 cluster-grounded **mini-themes**.
 2. **Consolidate (B1.5).** A second LLM pass groups the 43 mini-themes into
@@ -252,7 +254,8 @@ Each bar is one month, stacked by change-type (`add` / `change` / `fix` /
 over time.
 
 **What jumps out.** The cadence ramped from ~30–80 entries/month in early
-2025 to ~600/month by early 2026 — an order-of-magnitude acceleration. Read
+2025 to ~600–700/month through 2026 (peak: 731 in August 2026) — an
+order-of-magnitude acceleration. Read
 it as evidence that **whatever the tool is demanding of users, it is
 demanding more of it, faster**.
 """
@@ -311,8 +314,8 @@ def _(mo):
 For each month, the fraction of versioned releases that have **at least one
 matching blog post** within ±14 days that also shares a feature word.
 
-**What jumps out.** Across the whole corpus, **37.8%** of releases are
-narrated (112 of 296). The trough months are exactly the high-velocity
+**What jumps out.** Across the whole corpus, **40.5%** of releases are
+narrated (154 of 380). The trough months are exactly the high-velocity
 months. The takeaway: **changelog velocity routinely outpaces the
 explanatory work** that would help users keep up with what the tool now
 expects of them.
@@ -346,6 +349,60 @@ neutral observation.** The pipeline that produced these themes is described in
 §How above.
 """
     )
+
+
+@app.cell
+def _(mo, pl, changelog, joins, refresh_report):
+    _cut = refresh_report["cluster_solution_date"]
+    _may = changelog.filter(pl.col("date") <= _cut)
+    _aug = changelog.filter(pl.col("date") > _cut)
+    def _rm(df):
+        a = df.filter(pl.col("change_type") == "add").height
+        r = df.filter(pl.col("change_type").is_in(["remove", "deprecate"])).height
+        return a, r, (r / a if a else 0)
+    _ma, _mr, _mrate = _rm(_may); _aa, _ar, _arate = _rm(_aug)
+    _mn = joins.filter(pl.col("date") <= _cut); _an = joins.filter(pl.col("date") > _cut)
+    def _nar(df):
+        n = df.filter(pl.col("impact_tier") == "narrated").height
+        return n, df.height, (n / df.height if df.height else 0)
+    _mnn, _mnt, _mnr = _nar(_mn); _ann, _ant, _anr = _nar(_an)
+    _months = (_aug.with_columns(pl.col("date").str.slice(0, 7).alias("m"))
+               .group_by("m").len().sort("m"))
+    _pace = ", ".join(f"{m} {n}" for m, n in _months.iter_rows())
+    _pt = refresh_report["per_theme"]
+    _top = sorted(_pt.items(), key=lambda kv: -kv[1]["count"])[:3]
+    _top_s = "; ".join(f"{k.split(':')[0]} {v['share_of_new_items']:.0%}" for k, v in _top)
+    mo.md(f"""
+## What changed May → August 2026 (incremental refresh)
+
+The corpus was extended on {refresh_report["refreshed_on"]} from
+v{refresh_report["prior_max_version"]} to v{refresh_report["new_max_version"]}:
+**{refresh_report["new_items"]:,} new items** ({refresh_report["new_items_by_source"]}),
+assigned to the **unchanged** 13 anchor themes. The themes, clusters and
+coherence scores were *not* re-derived — see the methodology note below for
+why and for the two triggers that would force it.
+
+| | through {_cut} | after {_cut} |
+|---|---|---|
+| changelog entries | {_may.height:,} | {_aug.height:,} |
+| releases | {_may["version"].n_unique()} | {_aug["version"].n_unique()} |
+| removals+deprecations / additions | {_mr}/{_ma} = **{_mrate:.1%}** | {_ar}/{_aa} = **{_arate:.1%}** |
+| narrated releases | {_mnn}/{_mnt} = {_mnr:.1%} | {_ann}/{_ant} = {_anr:.1%} |
+
+**Pace.** Entries per month since the cut: {_pace}. August 2026 is the
+busiest month in the whole record.
+
+**Churn shifted.** The removal rate more than doubled, from
+{_mrate:.1%} to {_arate:.1%} of additions. The "almost never walks a feature
+back" reading of the first 14 months no longer holds unqualified: the
+post-May surface is being pruned as well as extended.
+
+**Where the new items landed.** New-item residual was
+{refresh_report["residual_fraction"]:.1%} (trigger: >5%); the largest single
+theme took {_top[0][1]["share_of_new_items"]:.1%} of new items (trigger: >40%).
+Top three: {_top_s}. Neither trigger fired, so the May theme model was kept.
+""")
+
 
 
 @app.cell
@@ -435,7 +492,10 @@ def _(mo):
 
 Rows are themes; columns are HDBSCAN embedding clusters (0–42). Color
 intensity is the number of entries tagged with both that theme AND that
-cluster. The residual Maintenance label is excluded.
+cluster. The residual Maintenance label is excluded. **This is the
+2026-05-23 cluster solution**: the 1,868 items added by the August refresh
+carry `cluster_label = -2` (unclustered) and are excluded here; coherence
+scores are frozen at that solution.
 
 **What it reveals.** Most themes smear. Median coherence is **0.30**. Only
 **Permissions** (0.67) and **MCP / External Connectivity** (0.65) clear 0.5.
@@ -457,7 +517,7 @@ def _(mo, pl, alt, codes, embeddings):
           .with_columns(pl.col("entry_id")
                         .map_elements(lambda e: cl.get(e, -1),
                                       return_dtype=pl.Int64).alias("cluster"))
-          .filter(pl.col("cluster") != -1)
+          .filter(pl.col("cluster") >= 0)   # drops -1 noise and -2 unclustered (post-refresh)
           .group_by("themes", "cluster").len())
     heat = alt.Chart(xt.to_pandas()).mark_rect().encode(
         x="cluster:O", y="themes:N",
@@ -478,8 +538,9 @@ dropped.
 
 **By source:** {residual['by_source']}.
 
-Down from v1's 33.6%; the remaining 1.5% is genuine maintenance, not
-analytical failure.
+Down from v1's 33.6%; the remaining ~1.5% is genuine maintenance, not
+analytical failure. (Corpus through v2.1.251; the 1,868 items added in the
+August 2026 refresh had a residual of 1.3%.)
 
 **Examples (random sample):**
 """ + "\n".join(f"- {x}" for x in residual["examples"]))
@@ -512,7 +573,9 @@ version section of the upstream `CHANGELOG.md` on GitHub. Click any URL to
 verify the entry yourself.
 
 Filter on `cluster_label` to read one embedding cluster (usually topically
-tight); filter on `themes` to audit one anchor theme's assignment quality.
+tight; `-1` = noise, `-2` = added after the 2026-05-23 cluster solution and
+never clustered); filter on `themes` to audit one anchor theme's assignment
+quality.
 The interesting entries are the ones where `mini_theme` (the bottom-up
 label) and `themes` (the consolidated labels) disagree.
 """
