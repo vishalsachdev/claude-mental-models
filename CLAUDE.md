@@ -42,12 +42,23 @@ is updated to the refreshed numbers (second editorial review applied) but
 **not published to any platform**.
 
 **Open follow-ups (next session, in priority):**
-1. **Publish the article** — drop "Draft" from the byline, then
-   `/publish-to-substack`, `/publish-to-linkedin`, `/publish-to-twitter`.
+1. **Finish distribution**: publish Substack draft 213283501; delete test
+   draft 213286503; post the X thread by hand from `articles/social/`.
 2. **Manual audit** — `data/processed/audit_sample.csv` (40 May rows, blank
    `agree`); record per-stratum agreement in `findings.md`.
 3. Next refresh: watch the two triggers; if residual >5% or one theme >40%,
    that is choice (b) — full re-derivation.
+
+## Publishing conventions (Vishal's ruling, 2026-08-29)
+
+- The published article (`articles/<date>-<slug>.md/.html`) and its refresh
+  notes stay tracked.
+- `articles/social/` and `articles/drafts/` are gitignored, in this repo and
+  in `~/.gitignore_global`. Posting plans and social drafts never go public.
+- Before committing ANY new file under `articles/`, state what it is
+  (draft / final / plan) and ask Vishal. A final piece is committed the day
+  it is published, not before.
+- Chart PNGs for articles live in `docs/img/` (public, served by Pages).
 
 ## Roadmap
 
@@ -102,7 +113,20 @@ is updated to the refreshed numbers (second editorial review applied) but
   11.8% → 27.4% post-May; Multi-Agent Orchestration 6th → 2nd by size.
 - Codex session 2026-08-26 (`5ef0614`) had already delivered Phase 3.
 - Article updated to the refresh (`d1e48a7`): churn-shift lede, tripwire
-  subsection, review P1s applied, no em-dashes. Not published.
+  subsection, review P1s applied, no em-dashes.
+- Licensing/metadata pass (`18c428b`, `fc7c394`): MIT + CC BY 4.0 data card,
+  blog bodies truncated to 1,500-char excerpts, GitHub description/topics.
+- Distribution: **LinkedIn newsletter edition published by Vishal today**
+  (draft 7499490414584844288 staged by browser automation, images added by
+  hand). **Substack draft 213283501 pending his publish** (cover og-pace.png
+  set via python-substack). **X thread to be posted by hand** from
+  `articles/social/…x.txt`: the X API path is shelved (Free tier = 1 app,
+  post cap 0; pay-per-use billing declined). LinkedIn developer app
+  `Hybrid Builder Publisher` (263546090, Page ChatWithGpt) exists but the
+  OAuth grant was not completed (password prompt). **Substack test draft
+  213286503 to delete.**
+- Social drafts + posting plan moved out of git (`bea2342`); chart PNGs in
+  `docs/img/`.
 
 ### 2026-05-27 / 05-28
 - Reframed the deliverable around **"the tool guides users to build mental
