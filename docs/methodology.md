@@ -14,7 +14,7 @@ issues — and surfaced a new, measured one (see §3.3).
 ## 1. What this analysis claims — and what it does not
 
 **The question.** What competencies and expectations did Claude Code's surface
-increasingly demand of its users over its first ~14 months?
+increasingly demand of its users over its first ~17 months?
 
 **The proxy.** We cannot observe what developers actually believed. We observe
 only what Claude Code *shipped* — its public `CHANGELOG.md` and Anthropic's blog

@@ -1,7 +1,7 @@
 <!-- audience: external -->
 # The Tool as Teacher: What 17 Months of Claude Code Releases Were Trying to Make You Understand
 
-*Draft updated 2026-08-29 (releases through v2.1.251) · The Hybrid Builder*
+*Updated 2026-08-29 (releases through v2.1.251) · The Hybrid Builder*
 
 I spent a week in May analyzing Claude Code's release history the way an anthropologist might read inscriptions on a temple wall: not to count the carvings, but to ask what beliefs they were trying to instill. Then I came back in August, three months and 84 releases later, to see whether the answer had changed. The result is [an interactive notebook](https://vishalsachdev.github.io/claude-mental-models/) anyone can open in a browser, pick a persona, and see the mental models the tool was guiding its users to build over its first 17 months.
 
@@ -78,7 +78,7 @@ This is the verifiability surface I wish more LLM-driven analyses had. The theme
 
 The companion to this piece is [The Self-Improving Loop](https://chatwithgpt.substack.com/p/the-self-improving-loop-how-claude), where I described how Claude Code's `/insights` turns your own usage data into compounding returns over time. That article was about reading *your* footprint; this one is about reading the *tool's* footprint and asking what it was teaching you while you weren't looking. The two analyses are inverse views of the same surface.
 
-The full pipeline is in the [repo](https://github.com/vishalsachdev/claude-mental-models): corpus collection, triangulation, persona lens, audit sample, and the incremental refresh with its tripwires. It's reproducible end-to-end from the public changelog. If you want to try this on a different tool's release history, the methodology should port. Cursor's changelog would tell you what a code editor is asking you to believe about agents; Linear's would tell you what a project tracker thinks a "task" now is. You'd swap the corpus collectors and re-tune the embedding parameters, but the triangulated theme layer is general.
+The full pipeline is in the [repo](https://github.com/vishalsachdev/claude-mental-models): corpus collection, triangulation, persona lens, audit sample, and the incremental refresh with its tripwires, with the code under MIT and the derived data under CC BY 4.0. It's reproducible end-to-end from the public changelog. If you want to try this on a different tool's release history, the methodology should port. Cursor's changelog would tell you what a code editor is asking you to believe about agents; Linear's would tell you what a project tracker thinks a "task" now is. You'd swap the corpus collectors and re-tune the embedding parameters, but the triangulated theme layer is general.
 
 I think we'll see more of this kind of analysis in the next year, reading product surfaces as pedagogical artifacts rather than as feature lists. Three months on, the syllabus got denser and started deleting old lessons, but the subjects did not change. That is the kind of thing you can only learn by coming back. The changelogs of the tools we use every day are quietly teaching us what to expect, configure, and reason about. We just haven't been reading them that way.
 
