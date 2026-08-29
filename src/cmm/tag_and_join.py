@@ -8,6 +8,12 @@ import polars as pl
 
 from cmm.llm import complete_json
 
+# The committed blogs.parquet carries only this many characters of each
+# post body: enough for every downstream consumer (tag prompt uses 1,500,
+# embeddings 800) without redistributing Anthropic's full post text. The
+# full bodies stay in the gitignored data/raw/blogs.json.
+EXCERPT_CHARS = 1500
+
 TAG_SYSTEM = (
     "You classify Anthropic blog posts by whether they are relevant to "
     "competencies and expectations of a Claude Code (CLI / coding agent / "
@@ -70,6 +76,8 @@ def run(blogs_raw: Path = Path("data/raw/blogs.json"),
         changelog: Path = Path("data/processed/changelog.parquet")) -> None:
     posts = json.loads(Path(blogs_raw).read_text())
     tagged = [tag_blog(p) for p in posts]
+    for t in tagged:
+        t["body"] = t["body"][:EXCERPT_CHARS]
     blogs_df = pl.DataFrame(tagged)
     blogs_df.write_parquet("data/processed/blogs.parquet")
     print(f"Tagged {len(blogs_df)} blogs; "

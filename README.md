@@ -39,3 +39,17 @@ All network and LLM calls are cached in `data/cache/`.
 `notebooks/analysis.py` — a marimo notebook: feature-volume / churn / blog-coverage
 / mental-model-emergence charts, an interactive cluster explorer, a themes
 reference table, and a RAG chat panel grounded in the corpus.
+
+## Licensing
+
+- **Code** (`src/`, `notebooks/`, `tests/`): [MIT](LICENSE), © 2026 Vishal Sachdev.
+- **Derived data** (`data/processed/` theme, assignment, join, persona and
+  coherence tables, and the JSON summaries): [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+  — see the [data card](data/README.md) for the per-file table, provenance
+  and a suggested citation.
+- **Upstream text**: the changelog entries reproduced in
+  `data/processed/changelog.parquet` are Anthropic's, from
+  [anthropics/claude-code](https://github.com/anthropics/claude-code), and
+  stay under Anthropic's terms; `blogs.parquet` carries short excerpts and
+  links to anthropic.com posts, not full articles.
+
