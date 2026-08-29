@@ -17,6 +17,7 @@ The 13 anchor themes (B1.5, derived on the corpus through v2.1.150 /
 Re-deriving themes, refitting clusters, or touching `anchor_themes.parquet`
 is deliberately out of scope here.
 """
+import concurrent.futures
 import hashlib
 import json
 from datetime import date
@@ -82,7 +83,7 @@ def _entry_key(theme_hash: str, entry_id: str, text: str) -> str:
 
 def assign_new(items: pl.DataFrame, anchor: pl.DataFrame,
                cache_dir: Path = DEFAULT_CACHE,
-               assign_batch=_assign_batch) -> pl.DataFrame:
+               assign_batch=_assign_batch, max_workers: int = 12) -> pl.DataFrame:
     """Assign `items` to the fixed anchor set; per-entry content-keyed cache.
 
     Only cache misses are batched (sorted by entry_id, BATCH_SIZE each) and
@@ -109,18 +110,24 @@ def assign_new(items: pl.DataFrame, anchor: pl.DataFrame,
     batches = [misses[i:i + BATCH_SIZE] for i in range(0, len(misses), BATCH_SIZE)]
     print(f"assign_new: {len(assigned)} cached, {len(misses)} to assign "
           f"in {len(batches)} batches")
-    for i, batch in enumerate(batches, 1):
-        by_id = {r["entry_id"]: r for r in batch}
+    def do_batch(batch: list[dict]) -> dict[str, list[str]]:
         returned = {a["entry_id"]: [t for t in a.get("themes", []) if t in valid]
                     for a in assign_batch(batch, block)}
-        for eid, r in by_id.items():
-            themes = returned.get(eid, [])   # absent from reply == no theme
-            assigned[eid] = themes
-            key = _entry_key(thash, eid, r["text"])
+        out = {}
+        for r in batch:
+            themes = returned.get(r["entry_id"], [])   # absent == no theme
+            key = _entry_key(thash, r["entry_id"], r["text"])
             _path(key, cache_dir).write_text(
                 json.dumps({"key": key, "value": themes}))
-        if i % 10 == 0:
-            print(f"  batch {i}/{len(batches)}")
+            out[r["entry_id"]] = themes
+        return out
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+        for i, fut in enumerate(
+                concurrent.futures.as_completed([ex.submit(do_batch, b) for b in batches]), 1):
+            assigned.update(fut.result())
+            if i % 10 == 0:
+                print(f"  batch {i}/{len(batches)}", flush=True)
     return items.with_columns(
         pl.col("entry_id").map_elements(lambda e: assigned.get(e, []),
                                         return_dtype=pl.List(pl.Utf8)).alias("themes")
