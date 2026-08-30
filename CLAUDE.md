@@ -30,24 +30,16 @@ months (themes derived at month 14, corpus extended incrementally). `@research` 
 
 ## Current Focus
 
-**Corpus refreshed to v2.1.251 (2026-08-29) with the May theme model held
-fixed** — choice (a). 4,919 entries / 380 releases / 45 posts; 1,868 new items
-assigned to the 13 anchors (residual 1.34%, top theme 19.0% — neither
-escalation trigger fired). Notebook prose, findings, methodology §5, README
-updated; WASM build rebuilt; article untouched, stale claims listed in
-`articles/2026-08-29-refresh-notes.md`.
-
-**Pushed to main + live on Pages 2026-08-29** (`d1e48a7`). The article draft
-is updated to the refreshed numbers (second editorial review applied) but
-**not published to any platform**.
+**Refresh shipped and distributed (2026-08-29).** Live notebook at v2.1.251;
+article rewritten; LinkedIn newsletter published; X thread posted (8/9 live,
+tweet 1 pinned); Substack draft 213283501 waiting on Vishal.
 
 **Open follow-ups (next session, in priority):**
-1. **Finish distribution**: publish Substack draft 213283501; delete test
-   draft 213286503; post the X thread by hand from `articles/social/`.
-2. **Manual audit** — `data/processed/audit_sample.csv` (40 May rows, blank
+1. Publish Substack draft 213283501; delete test draft 213286503.
+2. Manual audit — `data/processed/audit_sample.csv` (40 May rows, blank
    `agree`); record per-stratum agreement in `findings.md`.
-3. Next refresh: watch the two triggers; if residual >5% or one theme >40%,
-   that is choice (b) — full re-derivation.
+3. Next refresh: watch the two triggers (new-item residual >5%, one theme
+   >40%); either firing means choice (b), full re-derivation.
 
 ## Publishing conventions (Vishal's ruling, 2026-08-29)
 
@@ -96,57 +88,30 @@ is updated to the refreshed numbers (second editorial review applied) but
 
 ## Session Log
 
-### 2026-08-29 — incremental refresh (merged ff to main, pushed, branch deleted)
-- Feasibility first (read-only): delta was 84 versions / 1,862 entries
-  (v2.1.152–2.1.251) + 12 posts; full re-derivation would invalidate every
-  bottom-up artifact, so chose (a) with escalation triggers.
-- Fixed three collector defects (fetch-without-checkout; blog date extractor
-  returning `siteSettings._createdAt` for every post; undated index cache
-  key) and the string version sort — each with a positive control.
-- Method corrections logged in `findings.md`: best-practices post re-dated
-  2026-05-14 → 2025-04-18 (narration 37.8% → 38.9/39.2%); change-type table
-  had not summed to 3,057; one orphan row from an upstream edit.
-- New `cmm.refresh`: fixed anchors, per-entry content-keyed assignment cache,
-  clusters/coherence frozen as the 2026-05-23 solution (`cluster_label=-2`
-  for new rows), `refresh_report.json` with triggers.
-- Findings that moved: Aug 2026 = 731 entries (record); removal rate
-  11.8% → 27.4% post-May; Multi-Agent Orchestration 6th → 2nd by size.
-- Codex session 2026-08-26 (`5ef0614`) had already delivered Phase 3.
-- Article updated to the refresh (`d1e48a7`): churn-shift lede, tripwire
-  subsection, review P1s applied, no em-dashes.
-- Licensing/metadata pass (`18c428b`, `fc7c394`): MIT + CC BY 4.0 data card,
-  blog bodies truncated to 1,500-char excerpts, GitHub description/topics.
-- Distribution: **LinkedIn newsletter edition published by Vishal today**
-  (draft 7499490414584844288 staged by browser automation, images added by
-  hand). **Substack draft 213283501 pending his publish** (cover og-pace.png
-  set via python-substack). **X thread posted 2026-08-29 5:51 pm CDT** (8 of 9 live, tweet 1
-  pinned: x.com/vishalsachdev/status/2093833846185660624; staged via the
-  native composer, Vishal pressed Post all; the @AnthropicAI question
-  did not appear live): the X API path is shelved (Free tier = 1 app,
-  post cap 0; pay-per-use billing declined). LinkedIn developer app
-  `Hybrid Builder Publisher` (263546090, Page ChatWithGpt) exists but the
-  OAuth grant was not completed (password prompt). **Substack test draft
-  213286503 to delete.**
-- Social drafts + posting plan moved out of git (`bea2342`); chart PNGs in
-  `docs/img/`.
-
-### 2026-05-27 / 05-28
-- Reframed the deliverable around **"the tool guides users to build mental
-  models"** (restored the foreground framing C3 had downgraded) and added a
-  **persona lens**: `src/cmm/persona_lens.py` scores all 13 themes ×
-  4 personas (analyst / pm_ops / researcher / vibe_coder) → 52-row
-  `persona_relevance.parquet`. Notebook now has a persona radio; mental-model
-  map, emergence chart, and theme table all reshape per persona.
-  (analyst = 3 high themes, pm_ops = 8 — running ops touches nearly everything.)
-- Added **click-through verification links** (`src/cmm/urls.py`): every entry
-  links to anthropic.com (blogs) or the CHANGELOG.md version anchor (changelog).
-  New "Drill into a theme" notebook section.
-- **Published the notebook**: created public GitHub repo, WASM build via
-  `analysis_public.py` (httpx-fetches data, no RAG), GitHub Pages from
-  `main:/docs`. Live + verified 200.
-- **Wrote the Hybrid Builder article** (`articles/2026-05-27-the-tool-as-teacher.md`,
-  1,304 words) via the write-article skill: links verified, editorial review
-  (0 P0, 3 P1 fixed, 4 P2 open).
-- Next: publish article to platforms (Substack/LinkedIn/Twitter) + manual audit.
+### 2026-08-29
+- Completed: incremental corpus refresh to v2.1.251 with the May theme model
+  held fixed (`cmm.refresh`, triggers 1.34% / 19.0%, neither fired); three
+  collector defects + string version sort fixed with positive controls; method
+  corrections logged in findings.md; notebook/WASM/findings/methodology/README
+  updated and live on Pages; MIT + CC BY 4.0 data card; GitHub metadata;
+  article rewritten to the refresh (two editorial reviews); publishing
+  conventions added; social drafts moved out of git.
+- Distribution: **LinkedIn newsletter edition published** by Vishal (draft
+  7499490414584844288 staged by automation, images added by hand).
+  **X thread posted by Vishal 2026-08-29 at 5:51 PM CDT** (tweet timestamp
+  2026-08-29T22:51:05Z) via the native thread composer: 8 of 9 tweets verified
+  live, tweet 1 pinned
+  (x.com/vishalsachdev/status/2093833846185660624 … 2093833859489997017,
+  full list in the local `.x.plan.txt`); tweet 9 (the @AnthropicAI/@claudeai
+  question) was not found live (not under tweet 8, not on the Replies tab).
+  **Substack draft 213283501** (cover og-pace.png set via python-substack)
+  **pending Vishal's publish. Substack test draft 213286503 to delete.**
+- Apps: LinkedIn developer app `Hybrid Builder Publisher` (263546090, Page
+  ChatWithGpt) exists with products + redirect + 0600 env file, OAuth grant
+  not completed (password prompt); X API shelved (1-app Free quota, post cap
+  0, pay-per-use declined).
+- Next: publish Substack 213283501; delete 213286503; optionally reply tweet 9
+  by hand; finish LinkedIn OAuth (`authorize-linkedin.py`) if API posting is
+  wanted; manual audit (`audit_sample.csv`); watch the two refresh triggers.
 
 *Older entries archived to `docs/session-archive.md`.*
