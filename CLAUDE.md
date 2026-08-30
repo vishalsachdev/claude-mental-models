@@ -119,8 +119,10 @@ is updated to the refreshed numbers (second editorial review applied) but
 - Distribution: **LinkedIn newsletter edition published by Vishal today**
   (draft 7499490414584844288 staged by browser automation, images added by
   hand). **Substack draft 213283501 pending his publish** (cover og-pace.png
-  set via python-substack). **X thread to be posted by hand** from
-  `articles/social/…x.txt`: the X API path is shelved (Free tier = 1 app,
+  set via python-substack). **X thread posted 2026-08-29 5:51 pm CDT** (8 of 9 live, tweet 1
+  pinned: x.com/vishalsachdev/status/2093833846185660624; staged via the
+  native composer, Vishal pressed Post all; the @AnthropicAI question
+  did not appear live): the X API path is shelved (Free tier = 1 app,
   post cap 0; pay-per-use billing declined). LinkedIn developer app
   `Hybrid Builder Publisher` (263546090, Page ChatWithGpt) exists but the
   OAuth grant was not completed (password prompt). **Substack test draft
